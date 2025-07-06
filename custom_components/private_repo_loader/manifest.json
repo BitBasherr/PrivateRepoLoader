@@ -7,5 +7,9 @@
   "requirements": ["GitPython==3.1.43"],
   "codeowners": ["@BitBasherr"],
   "iot_class": "local_push",
-  "integration_type": "integration"
+  "integration_type": "integration",
+  "services": ["services.yaml"],
+  "translations": ["translations/en.json"],
+}
+
 }
