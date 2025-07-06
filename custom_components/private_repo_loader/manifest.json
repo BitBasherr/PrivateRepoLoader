@@ -1,7 +1,7 @@
 {
   "domain": "private_repo_loader",
   "name": "Private Repo Loader",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "config_flow": true,
   "documentation": "https://github.com/BitBasherr/PrivateRepoLoader",
   "requirements": ["GitPython==3.1.43"],

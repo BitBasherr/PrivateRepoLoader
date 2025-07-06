@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Private Repo Loader – initial setup",
+        "description": "Optionally provide a GitHub personal-access token (PAT) that will be used as the default for every repository you add later."
+      },
+      "init": {
+        "title": "Private Repo Loader – repositories",
+        "description": "Add, edit, or delete the private GitHub repositories you want Home Assistant to keep in sync. Each repo will be cloned into /config/custom_components/<slug>."
+      }
+    },
+    "error": {
+      "single_instance_allowed": "Only one instance of Private Repo Loader can be configured."
+    },
+    "abort": {
+      "single_instance_allowed": "Private Repo Loader is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Repositories",
+        "description": "Define the list of repositories to synchronize."
+      }
+    }
+  }
+}
