@@ -1,0 +1,7 @@
+{
+  "name": "Private Repo Loader",
+  "content_in_root": false,
+  "zip_release": false,
+  "filename": "private_repo_loader",
+  "render_readme": true
+}
