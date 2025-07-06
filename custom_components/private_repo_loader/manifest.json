@@ -11,5 +11,3 @@
   "services": ["services.yaml"],
   "translations": ["translations/en.json"],
 }
-
-}
