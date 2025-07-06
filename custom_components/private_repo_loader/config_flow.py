@@ -17,9 +17,9 @@ from .const import (
     DEFAULT_SLUG,
 )
 
-# ────────────────────────────────────────────────────────────────
+# ────────────────────────── Config flow ─────────────────────────
 class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Initial step – ask for a default PAT (optional)."""
+    """Initial step – ask once for an optional default PAT."""
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
@@ -29,37 +29,38 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input:
             return self.async_create_entry(
                 title="Private Repo Loader",
-                data={},      # nothing in .data
-                options={     # stored in .options
+                data={},               # nothing in .data
+                options={              # everything lives in .options
                     CONF_TOKEN: user_input.get(CONF_TOKEN, ""),
                     CONF_REPOS: [],
                 },
             )
 
-        schema = vol.Schema({
-            vol.Optional(CONF_TOKEN):
-                selector({"text": {"type": "password"}})
-        })
+        schema = vol.Schema(
+            {vol.Optional(CONF_TOKEN): selector({"text": {"type": "password"}})}
+        )
         return self.async_show_form(step_id="user", data_schema=schema)
 
-    # Options-flow hook
+    # Hook up options flow
     @staticmethod
     @callback
     def async_get_options_flow(entry):
         return OptionsFlow(entry)
 
-# ────────────────────────────────────────────────────────────────
+
+# ───────────────────────── Options flow ─────────────────────────
 class OptionsFlow(config_entries.OptionsFlow):
-    """Add / edit the list of repositories."""
+    """Add / edit / delete repositories."""
 
     def __init__(self, entry):
-        self.entry = entry
+        # *** critical line – HA looks for this exact attribute ***
+        self.config_entry = entry
 
     async def async_step_init(self, user_input=None):
         if user_input:
             return self.async_create_entry(data=user_input)
 
-        current = self.entry.options.get(CONF_REPOS, [])
+        current = self.config_entry.options.get(CONF_REPOS, [])
 
         schema = vol.Schema({
             vol.Optional(
@@ -68,11 +69,11 @@ class OptionsFlow(config_entries.OptionsFlow):
                     CONF_REPO: "https://github.com/<owner>/<repo>",
                     CONF_SLUG: DEFAULT_SLUG,
                     CONF_BRANCH: DEFAULT_BRANCH,
-                    CONF_TOKEN: self.entry.options.get(CONF_TOKEN, ""),
+                    CONF_TOKEN: self.config_entry.options.get(CONF_TOKEN, ""),
                 }],
             ): selector({
                 "add_dict": {
-                    "key_selector": {"text": {}},        # URL field
+                    "key_selector": {"text": {}},   # repo URL
                     "value_selector": {
                         "object": {
                             "keys": [

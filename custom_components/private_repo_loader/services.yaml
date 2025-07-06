@@ -1,3 +1,4 @@
 sync_now:
   name: Sync private repos now
-  description: "Clone/pull every configured private repository immediately and reload HACS."
+  description: Clone/pull every configured repository immediately and reload HACS.
+  fields: {}
