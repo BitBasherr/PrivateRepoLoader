@@ -1,7 +1,3 @@
-# custom_components/private_repo_loader/services.yaml
-refresh:
-  name: Refresh private repositories
-  description: |
-    Clone or pull every repository defined in the integration’s options and
-    then reload HACS so the new/updated custom components become available.
-  fields: {}
+sync_now:
+  name: Sync private repos now
+  description: "Clone/pull every configured private repository immediately and reload HACS."

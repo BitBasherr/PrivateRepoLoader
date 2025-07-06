@@ -1,20 +1,19 @@
 """Shared constants for Private Repo Loader."""
-from typing import Final
-import logging
+DOMAIN = "private_repo_loader"
 
-DOMAIN: Final = "private_repo_loader"
-LOGGER_NAME: Final = f"custom_components.{DOMAIN}"
+# Config-entry data / options
+CONF_TOKEN   = "token"          # Personal-access token (PAT) – may be ""
+CONF_REPOS   = "repos"          # list-of-dicts, each repo definition
+CONF_REPO    = "repository"     # https://github.com/owner/repo
+CONF_BRANCH  = "branch"         # branch / tag; default = main
+CONF_SLUG    = "slug"           # folder name under custom_components
 
-# Per-repo fields --------------------------------------------------------------
-CONF_TOKEN:  Final = "token"       # GitHub PAT (kept in options)
-CONF_REPO:   Final = "repository"  # https URL
-CONF_BRANCH: Final = "branch"
-CONF_SLUG:   Final = "slug"
+DEFAULT_BRANCH = "main"
+DEFAULT_SLUG   = "example"
 
-DEFAULT_BRANCH: Final = "main"
-DEFAULT_SLUG:   Final = "my_private_repo"
+# Storage helpers
+STORAGE_VERSION = 1
+STORAGE_KEY     = f"{DOMAIN}.storage"
 
-# Options-entry root keys -------------------------------------------------------
-CONF_REPOS:  Final = "repos"
-
-_LOGGER: Final = logging.getLogger(LOGGER_NAME)
+# Service name
+SERVICE_SYNC_NOW = "sync_now"

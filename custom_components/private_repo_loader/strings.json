@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "GitHub token (optional)",
-        "description": "Enter a Personal Access Token if you want it used as default for every repo you add later.",
+        "title": "Default GitHub token (optional)",
+        "description": "Enter a personal-access token to use as default when adding repositories. Leave empty if every repo will supply its own.",
         "data": { "token": "Personal access token" }
       }
     },
@@ -11,7 +11,7 @@
       "step": {
         "init": {
           "title": "Private repositories",
-          "description": "Add, edit or remove repositories. Each entry needs its own token.",
+          "description": "Add, edit or remove repositories below.",
           "data": { "repos": "Repositories" }
         }
       }
