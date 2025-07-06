@@ -1,3 +1,3 @@
-sync_now:
-  name: Sync now
-  description: Clone or pull every configured private repository immediately and trigger a HACS rescan.
+refresh:
+  name: Refresh private repos
+  description: Clone/pull every configured private repository immediately and reload HACS.

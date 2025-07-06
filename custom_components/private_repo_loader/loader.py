@@ -1,32 +1,36 @@
-"""Git clone / pull helpers – runs in executor."""
+"""Clone or update a private GitHub repo."""
 from pathlib import Path
-import git
 import logging
+import git
 
-from .const import CONF_URL, CONF_BRANCH, CONF_SLUG, CONF_PAT
+from .const import CONF_TOKEN, CONF_REPO, CONF_BRANCH
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _with_pat(url: str, pat: str) -> str:
+def _auth_url(url: str, token: str) -> str:
+    """Return https://<token>@github.com/owner/repo.git."""
     if not url.startswith("https://"):
-        raise ValueError("Only https:// GitHub URLs supported")
-    return url.replace("https://", f"https://{pat}@")
+        raise ValueError("Only https:// clone URLs supported")
+    return url.replace("https://", f"https://{token}@")
 
+def sync_repo(dest_root: Path, cfg: dict) -> str:
+    """
+    Clone or pull the repo described by *cfg* into <dest_root>/<slug>.
+    cfg must contain CONF_REPO, CONF_TOKEN, CONF_SLUG, CONF_BRANCH.
+    """
+    slug   = cfg[CONF_SLUG]
+    branch = cfg.get(CONF_BRANCH)
+    dest   = dest_root / slug
+    auth   = _auth_url(cfg[CONF_REPO], cfg[CONF_TOKEN])
 
-def sync_repo(hass, repo_cfg: dict, pat: str) -> None:
-    """Clone or pull a single repo."""
-    dest = Path(hass.config.path()) / "custom_components" / repo_cfg[CONF_SLUG]
-    url  = _with_pat(repo_cfg[CONF_URL], pat)
-    branch = repo_cfg.get(CONF_BRANCH, "main")
+    if dest.exists():
+        repo = git.Repo(dest)
+        repo.remote().set_url(auth)
+        repo.git.fetch()
+        repo.git.checkout(branch or repo.active_branch.name)
+        repo.remote().pull()
+        return "updated"
 
-    try:
-        if dest.exists():
-            repo = git.Repo(dest)
-            repo.remotes.origin.pull()
-            _LOGGER.info("Pulled private repo '%s'", dest.name)
-        else:
-            git.Repo.clone_from(url, dest, branch=branch)
-            _LOGGER.info("Cloned private repo '%s'", dest.name)
-    except Exception as exc:          # pylint: disable=broad-except
-        _LOGGER.error("Git error on %s – %s", repo_cfg[CONF_URL], exc)
+    git.Repo.clone_from(auth, dest, branch=branch or None)
+    return "cloned"

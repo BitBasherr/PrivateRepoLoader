@@ -2,21 +2,17 @@
   "config": {
     "step": {
       "user": {
-        "title": "GitHub access token",
-        "description": "Create a fine-grained PAT with **Contents → Read-only** scope and paste it below.",
-        "data": {
-          "github_pat": "Personal access token"
-        }
+        "title": "GitHub token (optional)",
+        "description": "Enter a Personal Access Token if you want it used as default for every repo you add later.",
+        "data": { "token": "Personal access token" }
       }
     },
     "options": {
       "step": {
         "init": {
-          "title": "Managed private repositories",
-          "description": "Add, edit or remove private integrations. “slug” must match the folder name that Home-Assistant will import.",
-          "data": {
-            "repos": "Repositories"
-          }
+          "title": "Private repositories",
+          "description": "Add, edit or remove repositories. Each entry needs its own token.",
+          "data": { "repos": "Repositories" }
         }
       }
     }

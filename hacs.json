@@ -2,7 +2,6 @@
   "name": "Private Repo Loader",
   "content_in_root": false,
   "domains": ["private_repo_loader"],
-  "country": "US",
-  "homeassistant": "2024.10.0",
-  "persistent_directory": "custom_components/private_repo_loader"
+  "zip_release": false,
+  "render_readme": true
 }
