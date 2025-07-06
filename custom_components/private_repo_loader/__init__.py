@@ -36,7 +36,8 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
         *[hass.async_add_executor_job(sync_repo, root, rcfg) for rcfg in repos]
     )
     if "hacs" in hass.config.components:
-        await hass.services.async_call("hacs", "reload", blocking=False)
+        for entry in hass.config_entries.async_entries("hacs"):
+            await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
