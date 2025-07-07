@@ -1,4 +1,5 @@
 """Config- and options-flow for Private Repo Loader."""
+
 from __future__ import annotations
 
 import voluptuous as vol
@@ -18,17 +19,15 @@ from .const import (
     DEFAULT_SLUG,
 )
 
-class FlowHandler(
-    config_entries.ConfigFlow, domain=DOMAIN
-):
+
+class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Ask once for an optional default GitHub PAT."""
+
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
         if self._async_current_entries():
-            return self.async_abort(
-                reason="single_instance_allowed"
-            )
+            return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
             return self.async_create_entry(
@@ -47,9 +46,7 @@ class FlowHandler(
                 )
             }
         )
-        return self.async_show_form(
-            step_id="user", data_schema=schema
-        )
+        return self.async_show_form(step_id="user", data_schema=schema)
 
     @staticmethod
     @callback
@@ -99,16 +96,12 @@ class OptionsFlow(config_entries.OptionsFlow):
                                 {
                                     "name": CONF_BRANCH,
                                     "selector": {
-                                        "text": {
-                                            "default": DEFAULT_BRANCH
-                                        }
+                                        "text": {"default": DEFAULT_BRANCH}
                                     },
                                 },
                                 {
                                     "name": CONF_TOKEN,
-                                    "selector": {
-                                        "text": {"type": "password"}
-                                    },
+                                    "selector": {"text": {"type": "password"}},
                                 },
                             ]
                         }
@@ -120,6 +113,4 @@ class OptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema(
             {vol.Optional(CONF_REPOS, default=current): repos_selector}
         )
-        return self.async_show_form(
-            step_id="init", data_schema=schema
-        )
+        return self.async_show_form(step_id="init", data_schema=schema)
