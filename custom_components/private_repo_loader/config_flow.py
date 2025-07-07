@@ -1,4 +1,4 @@
-"""Config- and options-flow for Private Repo Loader (stable version)."""
+"""Config- and options-flow for Private Repo Loader (one-step installer)."""
 from __future__ import annotations
 
 import voluptuous as vol
@@ -8,16 +8,18 @@ from homeassistant.helpers.selector import selector
 
 from .const import (
     DOMAIN,
+    # field names
     CONF_TOKEN,
     CONF_REPOS,
     CONF_REPO,
     CONF_BRANCH,
     CONF_SLUG,
+    # defaults
     DEFAULT_BRANCH,
     DEFAULT_SLUG,
 )
 
-# ─────────── Initial “Add integration” flow ───────────
+# ────────────────────── Add-integration flow ──────────────────────
 class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -26,40 +28,44 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input:
-            return self.async_create_entry(
-                title="Private Repo Loader",
-                data={},
-                options={CONF_TOKEN: user_input.get(CONF_TOKEN, ""), CONF_REPOS: []},
-            )
+            # always store the global PAT
+            options = {CONF_TOKEN: user_input.get(CONF_TOKEN, ""), CONF_REPOS: []}
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {vol.Optional(CONF_TOKEN): selector({"text": {"type": "password"}})}
-            ),
+            # if the user entered a repo URL, store the first repo too
+            if user_input.get(CONF_REPO):
+                options[CONF_REPOS].append(
+                    {
+                        CONF_REPO: user_input[CONF_REPO],
+                        CONF_BRANCH: user_input.get(CONF_BRANCH, DEFAULT_BRANCH),
+                        CONF_SLUG: user_input.get(CONF_SLUG, DEFAULT_SLUG),
+                        CONF_TOKEN: options[CONF_TOKEN],  # reuse default PAT
+                    }
+                )
+
+            return self.async_create_entry(title="Private Repo Loader", data={}, options=options)
+
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_TOKEN): selector({"text": {"type": "password"}}),
+                vol.Optional(CONF_REPO): selector({"text": {}}),
+                vol.Optional(CONF_BRANCH, default=DEFAULT_BRANCH): selector({"text": {}}),
+                vol.Optional(CONF_SLUG,   default=DEFAULT_SLUG): selector({"text": {}}),
+            }
         )
+        return self.async_show_form(step_id="user", data_schema=schema)
 
+    # Hook up the familiar repo-editor for later additions
     @staticmethod
     @callback
     def async_get_options_flow(entry: config_entries.ConfigEntry):
         return OptionsFlow(entry)
 
-# ─────────── Gear-icon (Options) flow ───────────
+# ───────────────────── Options-flow (gear icon) ────────────────────
 class OptionsFlow(config_entries.OptionsFlow):
-    """
-    Works on every HA version.
+    """Add / edit / delete repositories later."""
 
-    • Accepts *entry* in __init__ (older cores).
-    • New cores inject self.config_entry later.
-    • Never touches self.config_entry inside __init__.
-    """
-
-    def __init__(self, entry: config_entries.ConfigEntry | None = None):
-        self._entry_param = entry
-
-    @property
-    def _entry(self) -> config_entries.ConfigEntry:
-        return getattr(self, "config_entry", None) or self._entry_param
+    def __init__(self, entry):
+        self._entry = entry
 
     async def async_step_init(self, user_input=None):
         if user_input:
