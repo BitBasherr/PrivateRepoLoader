@@ -19,7 +19,7 @@ dest_repo.create_remote("origin", tmp_repo.as_uri())
 upstream = git.Repo(tmp_repo)
 upstream.index.add(["foo.txt"])
 upstream.index.commit("add foo")
-upstream.git.branch("-M", "main")  # ensure branch name for update
+upstream.git.branch("-M", "main")
 
 result = sync_repo(dest, cfg)
 assert result == "updated"
