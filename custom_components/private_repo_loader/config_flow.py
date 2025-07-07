@@ -1,4 +1,4 @@
-"""Config- & options-flow for Private Repo Loader."""
+"""Config- and options-flow for Private Repo Loader."""
 from __future__ import annotations
 
 import voluptuous as vol
@@ -17,9 +17,9 @@ from .const import (
     DEFAULT_SLUG,
 )
 
-# ────────────────────────── Config flow ─────────────────────────
+# ────────────────────────── Config flow ──────────────────────────
 class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Initial step – ask once for an optional default PAT."""
+    """Initial step – ask once for an optional default GitHub PAT."""
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
@@ -29,8 +29,8 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input:
             return self.async_create_entry(
                 title="Private Repo Loader",
-                data={},               # nothing in .data
-                options={              # everything lives in .options
+                data={},         # nothing stored in .data
+                options={        # everything lives in .options
                     CONF_TOKEN: user_input.get(CONF_TOKEN, ""),
                     CONF_REPOS: [],
                 },
@@ -41,20 +41,22 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(step_id="user", data_schema=schema)
 
-    # Hook up options flow
+    # Expose options flow
     @staticmethod
     @callback
-    def async_get_options_flow(entry):
+    def async_get_options_flow(entry: config_entries.ConfigEntry):
         return OptionsFlow(entry)
 
 
-# ───────────────────────── Options flow ─────────────────────────
+# ───────────────────────── Options flow ──────────────────────────
 class OptionsFlow(config_entries.OptionsFlow):
-    """Add / edit / delete repositories."""
+    """
+    Add / edit / delete repositories.
 
-    def __init__(self, entry):
-        # *** critical line – HA looks for this exact attribute ***
-        self.config_entry = entry
+    NOTE: we no longer assign `self.config_entry` ourselves – the parent
+    class does that automatically. This removes the deprecation warning
+    shown in Home Assistant 2025.6 and will keep working past 2025.12.
+    """
 
     async def async_step_init(self, user_input=None):
         if user_input:
@@ -73,7 +75,7 @@ class OptionsFlow(config_entries.OptionsFlow):
                 }],
             ): selector({
                 "add_dict": {
-                    "key_selector": {"text": {}},   # repo URL
+                    "key_selector": {"text": {}},   # repository URL
                     "value_selector": {
                         "object": {
                             "keys": [
