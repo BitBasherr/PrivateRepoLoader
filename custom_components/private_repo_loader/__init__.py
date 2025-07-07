@@ -8,7 +8,7 @@ import logging
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback  # ← ensure callback is imported
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -42,8 +42,8 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
     """
     root = _dest_root(hass)
 
-    async def _run_one(cfg: dict) -> str:
-        # Import inside the thread to avoid blocking the event loop
+    # Now a normal function, not async
+    def _run_one(cfg: dict) -> str:
         from .loader import sync_repo  # noqa: F811
         return sync_repo(root, cfg)
 
