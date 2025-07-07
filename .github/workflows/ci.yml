@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: CI
 
 permissions:
@@ -54,7 +53,7 @@ jobs:
       - name: Type-check with Mypy
         run: |
           mypy \
-            --explicit-package-bases custom_components=custom_components,tests=tests \
+            --explicit-package-bases "custom_components=custom_components,tests=tests" \
             custom_components/private_repo_loader \
             tests/test_loader.py
 
