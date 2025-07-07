@@ -1,6 +1,10 @@
 # .github/workflows/ci.yml
 name: CI
 
+# Grant the GITHUB_TOKEN write access to repository contents
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
@@ -10,7 +14,6 @@ on:
 jobs:
   format-and-test:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
         with:
