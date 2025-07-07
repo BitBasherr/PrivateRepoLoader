@@ -1,6 +1,7 @@
 from pathlib import Path
 
-import git import pytest
+import git
+import pytest
 
 from custom_components.private_repo_loader.loader import sync_repo
 
