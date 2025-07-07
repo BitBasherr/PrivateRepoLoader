@@ -1,7 +1,8 @@
+# .github/workflows/ci.yml
 name: CI
 
 permissions:
-  contents: write  # allow pushing Black fixes
+  contents: write  # allow formatting commits
 
 on:
   push:
@@ -36,10 +37,9 @@ jobs:
             pytest \
             pytest-mock \
             gitpython \
-            homeassistant \
-            EndBug/add-and-commit
+            homeassistant
 
-      - name: Auto‐format with Black (79 cols)
+      - name: Auto‐format with Black
         run: black .
 
       - name: Commit Black fixes
