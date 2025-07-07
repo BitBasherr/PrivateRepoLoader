@@ -4,9 +4,7 @@ import sys
 # Make custom_components importable
 sys.path.insert(
     0,
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..")
-    ),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
 )
 
 import shutil
@@ -17,6 +15,7 @@ import pytest
 
 # Override _auth_url to accept file:// URLs in tests
 import custom_components.private_repo_loader.loader as loader_module
+
 loader_module._auth_url = lambda url, token: url
 
 from custom_components.private_repo_loader.loader import sync_repo
