@@ -1,4 +1,4 @@
-"""Config- and options-flow for Private Repo Loader (stable version)."""
+"""Config- and options-flow for Private Repo Loader."""
 from __future__ import annotations
 
 import voluptuous as vol
@@ -17,15 +17,18 @@ from .const import (
     DEFAULT_SLUG,
 )
 
+# ─────────── Initial “Add integration” flow ───────────
 class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Initial flow – ask for optional default PAT."""
+    """Ask once for an optional default GitHub PAT."""
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
+        # Prevent more than one instance
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
+            # Create the entry with empty repo list
             return self.async_create_entry(
                 title="Private Repo Loader",
                 data={},
@@ -35,6 +38,7 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 },
             )
 
+        # Show first form: just the default token
         schema = vol.Schema(
             {vol.Optional(CONF_TOKEN): selector({"text": {"type": "password"}})}
         )
@@ -43,37 +47,47 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(entry: config_entries.ConfigEntry):
+        """Hook to open the repo‐list editor from the Integrations UI."""
         return OptionsFlow(entry)
 
 
+# ─────────── Gear-icon (Options) flow ───────────
 class OptionsFlow(config_entries.OptionsFlow):
-    """Gear-icon flow – add / edit / delete repositories."""
+    """Add / edit / remove your private repos."""
 
     def __init__(self, entry: config_entries.ConfigEntry | None = None):
+        # Store the entry until HA injects self.config_entry on newer core versions
         self._entry_param = entry
 
     @property
     def _entry(self) -> config_entries.ConfigEntry:
-        return getattr(self, "config_entry", self._entry_param)  # HA injects config_entry on newer cores
+        return getattr(self, "config_entry", self._entry_param)
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
             return self.async_create_entry(data=user_input)
 
+        # Pre-populate with whatever is already in options
         current = self._entry.options.get(CONF_REPOS, [])
 
-        repo_selector = selector(
-            {
-                "object": {
-                    "keys": [
-                        {"name": CONF_REPO,   "selector": {"text": {}}},
-                        {"name": CONF_SLUG,   "selector": {"text": {"default": DEFAULT_SLUG}}},
-                        {"name": CONF_BRANCH, "selector": {"text": {"default": DEFAULT_BRANCH}}},
-                        {"name": CONF_TOKEN,  "selector": {"text": {"type": "password"}}},
-                    ]
+        # A list of dicts selector for repos
+        repo_selector = selector({
+            "add_dict": {
+                "key_selector": {"text": {}},
+                "value_selector": {
+                    "object": {
+                        "keys": [
+                            {"name": CONF_SLUG,   "selector": {"text": {"default": DEFAULT_SLUG}}},
+                            {"name": CONF_BRANCH, "selector": {"text": {"default": DEFAULT_BRANCH}}},
+                            {"name": CONF_TOKEN,  "selector": {"text": {"type": "password"}}},
+                        ]
+                    }
                 }
             }
-        )
+        })
 
-        schema = vol.Schema({vol.Optional(CONF_REPOS, default=current): repo_selector})
+        schema = vol.Schema({
+            vol.Optional(CONF_REPOS, default=current): repo_selector
+        })
+
         return self.async_show_form(step_id="init", data_schema=schema)
