@@ -1,4 +1,4 @@
-"""Config- and options-flow for Private Repo Loader."""
+"""Config- and options-flow for Private Repo Loader (fallback selectors)."""
 from __future__ import annotations
 
 import voluptuous as vol
@@ -19,7 +19,6 @@ from .const import (
 
 # ────────────────────────── Config flow ──────────────────────────
 class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Initial step – ask once for an optional default GitHub PAT."""
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
@@ -29,11 +28,8 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input:
             return self.async_create_entry(
                 title="Private Repo Loader",
-                data={},         # nothing stored in .data
-                options={        # everything lives in .options
-                    CONF_TOKEN: user_input.get(CONF_TOKEN, ""),
-                    CONF_REPOS: [],
-                },
+                data={},
+                options={CONF_TOKEN: user_input.get(CONF_TOKEN, ""), CONF_REPOS: []},
             )
 
         schema = vol.Schema(
@@ -41,7 +37,6 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(step_id="user", data_schema=schema)
 
-    # Expose options flow
     @staticmethod
     @callback
     def async_get_options_flow(entry: config_entries.ConfigEntry):
@@ -50,43 +45,29 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
 # ───────────────────────── Options flow ──────────────────────────
 class OptionsFlow(config_entries.OptionsFlow):
-    """
-    Add / edit / delete repositories.
-
-    NOTE: we no longer assign `self.config_entry` ourselves – the parent
-    class does that automatically. This removes the deprecation warning
-    shown in Home Assistant 2025.6 and will keep working past 2025.12.
-    """
+    """Add / edit / delete repositories."""
 
     async def async_step_init(self, user_input=None):
         if user_input:
             return self.async_create_entry(data=user_input)
 
+        # Current list (may be empty)
         current = self.config_entry.options.get(CONF_REPOS, [])
 
-        schema = vol.Schema({
-            vol.Optional(
-                CONF_REPOS,
-                default=current or [{
-                    CONF_REPO: "https://github.com/<owner>/<repo>",
-                    CONF_SLUG: DEFAULT_SLUG,
-                    CONF_BRANCH: DEFAULT_BRANCH,
-                    CONF_TOKEN: self.config_entry.options.get(CONF_TOKEN, ""),
-                }],
-            ): selector({
-                "add_dict": {
-                    "key_selector": {"text": {}},   # repository URL
-                    "value_selector": {
-                        "object": {
-                            "keys": [
-                                {"name": CONF_SLUG,   "selector": {"text": {}}},
-                                {"name": CONF_BRANCH, "selector": {"text": {"default": DEFAULT_BRANCH}}},
-                                {"name": CONF_TOKEN,  "selector": {"text": {"type": "password"}}},
-                            ]
-                        }
-                    },
+        # A simple object selector that’s valid on every HA version
+        repo_selector = selector(
+            {
+                "object": {
+                    "keys": [
+                        {"name": CONF_REPO,   "selector": {"text": {}}},
+                        {"name": CONF_SLUG,   "selector": {"text": {"default": DEFAULT_SLUG}}},
+                        {"name": CONF_BRANCH, "selector": {"text": {"default": DEFAULT_BRANCH}}},
+                        {"name": CONF_TOKEN,  "selector": {"text": {"type": "password"}}},
+                    ]
                 }
-            })
-        })
+            }
+        )
+
+        schema = vol.Schema({vol.Optional(CONF_REPOS, default=current): repo_selector})
 
         return self.async_show_form(step_id="init", data_schema=schema)
