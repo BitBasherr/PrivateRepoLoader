@@ -52,7 +52,11 @@ jobs:
         run: flake8 .
 
       - name: Type-check with Mypy
-        run: mypy custom_components/private_repo_loader tests/test_loader.py
+        run: |
+          mypy \
+            --explicit-package-bases custom_components=custom_components,tests=tests \
+            custom_components/private_repo_loader \
+            tests/test_loader.py
 
       - name: Run tests
         run: pytest tests/ --maxfail=1 --disable-warnings -q
