@@ -5,9 +5,11 @@ permissions:
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   lint-test:
@@ -17,15 +19,16 @@ jobs:
         python: ['3.10']
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          persist-credentials: true   # allow push
-          fetch-depth: 0             # pull full history so we can fast-forward
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python }}
+          python-version: '3.10'
 
       - name: Install dev dependencies
         run: |
@@ -39,7 +42,7 @@ jobs:
             gitpython \
             homeassistant
 
-      - name: Auto-format with Black
+      - name: Format code with Black
         run: black .
 
       - name: Commit Black fixes
@@ -47,7 +50,7 @@ jobs:
         with:
           message: "chore: format code with Black"
           add: "."
-          pull: true                 # merge any remote changes first
+          push: true
 
       - name: Lint with Flake8
         run: flake8 .
