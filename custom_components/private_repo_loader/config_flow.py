@@ -1,4 +1,4 @@
-"""Config- and options-flow for Private Repo Loader – final stable."""
+"""Config- and options-flow for Private Repo Loader (stable version)."""
 from __future__ import annotations
 
 import voluptuous as vol
@@ -17,7 +17,7 @@ from .const import (
     DEFAULT_SLUG,
 )
 
-# ─────────── Initial “Add-integration” flow ───────────
+# ─────────── Initial “Add integration” flow ───────────
 class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -50,16 +50,15 @@ class OptionsFlow(config_entries.OptionsFlow):
     Works on every HA version.
 
     • Accepts *entry* in __init__ (older cores).
-    • Newer cores inject self.config_entry later.
-    • Never accesses self.config_entry inside __init__ (avoids ValueError).
+    • New cores inject self.config_entry later.
+    • Never touches self.config_entry inside __init__.
     """
 
     def __init__(self, entry: config_entries.ConfigEntry | None = None):
-        self._entry_param = entry  # store but don't touch self.config_entry
+        self._entry_param = entry
 
     @property
     def _entry(self) -> config_entries.ConfigEntry:
-        # Use the official property when available; fall back to constructor copy
         return getattr(self, "config_entry", None) or self._entry_param
 
     async def async_step_init(self, user_input=None):

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Default GitHub token (optional)",
-        "description": "Enter a personal-access token to use as default when adding repositories. Leave empty if every repo supplies its own.",
+        "description": "Enter a personal-access token to use as the default when adding repositories.",
         "data": { "token": "Personal access token" }
       }
     },
