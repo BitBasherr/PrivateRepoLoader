@@ -19,7 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          persist-credentials: true
+          persist-credentials: true   # allow push
+          fetch-depth: 0             # pull full history so we can fast-forward
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -46,6 +47,7 @@ jobs:
         with:
           message: "chore: format code with Black"
           add: "."
+          pull: true                 # merge any remote changes first
 
       - name: Lint with Flake8
         run: flake8 .
