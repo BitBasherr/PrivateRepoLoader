@@ -26,27 +26,31 @@ SCAN_INTERVAL = timedelta(hours=6)
 PLATFORMS = [Platform.SENSOR]
 
 
-# ────────────────────────────────────────────────────────────────
 async def async_setup(*_) -> bool:
-    """Nothing to configure via YAML."""
     return True
 
 
-# ─────────────────────────── helpers ────────────────────────────
 @callback
 def _dest_root(hass: HomeAssistant) -> Path:
     return Path(hass.config.path("custom_components"))
 
 
 async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
-    """Clone/pull every repo, then reload HACS and fire dispatcher."""
+    """Clone / pull every repo, log failures but never raise."""
     root = _dest_root(hass)
-    await asyncio.gather(
-        *[hass.async_add_executor_job(sync_repo, root, cfg) for cfg in repos]
+
+    results = await asyncio.gather(
+        *[hass.async_add_executor_job(sync_repo, root, cfg) for cfg in repos],
+        return_exceptions=True,
     )
+
+    for cfg, res in zip(repos, results, strict=False):
+        if isinstance(res, Exception):
+            _LOGGER.error("Repo %s failed: %s", cfg.get("repository"), res)
 
     async_dispatcher_send(hass, DISPATCHER_SYNC_DONE, datetime.now())
 
+    # reload HACS so it rescans custom_components
     hacs_entries = hass.config_entries.async_entries("hacs")
     if hacs_entries:
         _LOGGER.debug("Reloading HACS after repo sync")
@@ -63,23 +67,24 @@ def _register_device(hass: HomeAssistant, entry: ConfigEntry) -> None:
     )
 
 
-# ─────────────────── config-entry life-cycle ────────────────────
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_device(hass, entry)
 
     async def _run(_=None):
         await _sync_all(hass, entry.options.get(CONF_REPOS, []))
 
+    # initial run
     if hass.is_running:
         hass.async_create_task(_run())
     else:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _run)
 
+    # periodic runs
     entry.async_on_unload(
         async_track_time_interval(hass, _run, SCAN_INTERVAL)
     )
 
-    # (Re)register the manual service every time; ignore duplicates
+    # (re)register service (ignore duplicate)
     async def _svc(_: ServiceCall) -> None:
         await _run()
 
@@ -88,7 +93,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ValueError:
         pass
 
-    # forward to sensor platform
+    # sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
