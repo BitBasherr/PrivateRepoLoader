@@ -1,4 +1,4 @@
-"""Private Repo Loader – keep private GitHub repos in sync & refresh HACS."""
+"""Private Repo Loader – sync private GitHub repos & refresh HACS."""
 from __future__ import annotations
 
 import asyncio
@@ -8,9 +8,8 @@ import logging
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
@@ -27,65 +26,55 @@ PLATFORMS = [Platform.SENSOR]
 
 
 async def async_setup(*_) -> bool:
+    """No YAML setup required."""
     return True
 
 
 @callback
 def _dest_root(hass: HomeAssistant) -> Path:
+    """Where repos are cloned."""
     return Path(hass.config.path("custom_components"))
 
 
 async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
-    """Clone / pull every repo, log failures but never raise."""
+    """Clone/pull every repo, log failures, then fire sensor update."""
     root = _dest_root(hass)
 
     results = await asyncio.gather(
         *[hass.async_add_executor_job(sync_repo, root, cfg) for cfg in repos],
         return_exceptions=True,
     )
-
     for cfg, res in zip(repos, results, strict=False):
         if isinstance(res, Exception):
             _LOGGER.error("Repo %s failed: %s", cfg.get("repository"), res)
 
+    # Notify sensor
     async_dispatcher_send(hass, DISPATCHER_SYNC_DONE, datetime.now())
 
-    # reload HACS so it rescans custom_components
-    hacs_entries = hass.config_entries.async_entries("hacs")
-    if hacs_entries:
+    # Reload HACS if installed
+    for entry in hass.config_entries.async_entries("hacs"):
         _LOGGER.debug("Reloading HACS after repo sync")
-        await hass.config_entries.async_reload(hacs_entries[0].entry_id)
-
-
-def _register_device(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    dr.async_get(hass).async_get_or_create(
-        config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, "private_repo_loader")},
-        manufacturer="BitBasherr",
-        name="Private Repo Loader",
-        model="Git-Sync Helper",
-    )
+        await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    _register_device(hass, entry)
-
+    """Start periodic sync, register service, and load sensor platform."""
     async def _run(_=None):
         await _sync_all(hass, entry.options.get(CONF_REPOS, []))
 
-    # initial run
+    # Run once at start
     if hass.is_running:
         hass.async_create_task(_run())
     else:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _run)
 
-    # periodic runs
+    # Schedule periodic
     entry.async_on_unload(
         async_track_time_interval(hass, _run, SCAN_INTERVAL)
     )
 
-    # (re)register service (ignore duplicate)
-    async def _svc(_: ServiceCall) -> None:
+    # (Re)register sync_now service
+    async def _svc(_: ServiceCall):
         await _run()
 
     try:
@@ -93,15 +82,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ValueError:
         pass
 
-    # sensor platform
+    # Forward to sensor platform (no device)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload sensor and remove service if last entry."""
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    if len(hass.config_entries.async_entries(DOMAIN)) == 1:
+    if not hass.config_entries.async_entries(DOMAIN):
         if hass.services.has_service(DOMAIN, SERVICE_SYNC_NOW):
             hass.services.async_remove(DOMAIN, SERVICE_SYNC_NOW)
 

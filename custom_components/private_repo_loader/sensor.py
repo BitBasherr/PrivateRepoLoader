@@ -25,20 +25,11 @@ class LastSyncSensor(SensorEntity):
     def __init__(self) -> None:
         self._unsub = None
         self._pending: datetime | None = None
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, "private_repo_loader")},
-            "manufacturer": "BitBasherr",
-            "name": "Private Repo Loader",
-            "model": "Git-Sync Helper",
-        }
 
-    # ------------------------------------------------------------------
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener after entity is ready."""
         self._unsub = async_dispatcher_connect(
             self.hass, DISPATCHER_SYNC_DONE, self._handle_sync
         )
-        # Flush any early signal received before entity existed
         if self._pending:
             self._set_value(self._pending)
             self._pending = None
@@ -48,12 +39,9 @@ class LastSyncSensor(SensorEntity):
             self._unsub()
             self._unsub = None
 
-    # ------------------------------------------------------------------
     @callback
     def _handle_sync(self, when: datetime) -> None:
-        """Dispatcher callback: update sensor value."""
         if self.hass is None:
-            # Entity not yet ready – cache and exit
             self._pending = when
             return
         self._set_value(when)

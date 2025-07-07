@@ -1,4 +1,4 @@
-"""Clone / pull a private GitHub repo (runs in an executor thread)."""
+"""Clone / pull a private GitHub repo (runs in executor)."""
 from __future__ import annotations
 
 import shutil
@@ -7,7 +7,7 @@ from pathlib import Path
 import logging
 from typing import Dict, Any
 
-import git                                   # GitPython
+import git
 from git.exc import GitCommandError, InvalidGitRepositoryError
 
 from .const import (
@@ -22,24 +22,18 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _auth_url(url: str, token: str | None) -> str:
-    """Embed PAT into HTTPS URL (if given)."""
     if not url.startswith("https://"):
-        raise ValueError("Only https URLs supported")
+        raise ValueError("Only https clone URLs are supported")
     return url.replace("https://", f"https://{token}@") if token else url
 
 
 def _move_aside(path: Path) -> None:
-    """Move *path* → *path.old_<timestamp>*."""
     shutil.move(str(path), f"{path}.old_{int(time.time())}")
 
 
 def sync_repo(root: Path, cfg: Dict[str, Any]) -> str:
-    """
-    Clone or update the repo described by *cfg*.
-    Returns: 'cloned' | 'updated' | 'skipped'.
-    """
     url    = cfg[CONF_REPO]
-    slug   = cfg.get(CONF_SLUG, cfg.get(CONF_BRANCH, DEFAULT_BRANCH))
+    slug   = cfg.get(CONF_SLUG, DEFAULT_BRANCH)
     branch = cfg.get(CONF_BRANCH, DEFAULT_BRANCH)
     token  = cfg.get(CONF_TOKEN, "")
     dest   = root / slug
@@ -55,7 +49,6 @@ def sync_repo(root: Path, cfg: Dict[str, Any]) -> str:
                 git.Repo.clone_from(auth, dest, branch=branch)
                 return "cloned"
 
-            # existing repo – update
             repo.remote().set_url(auth)
             repo.git.fetch("--all", "--prune")
             try:
@@ -68,6 +61,6 @@ def sync_repo(root: Path, cfg: Dict[str, Any]) -> str:
         git.Repo.clone_from(auth, dest, branch=branch)
         return "cloned"
 
-    except Exception as exc:                      # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         _LOGGER.error("Repo %s: %s", url, exc)
         return "skipped"

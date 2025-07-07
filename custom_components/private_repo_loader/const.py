@@ -14,8 +14,6 @@ DEFAULT_BRANCH: Final = "main"
 DEFAULT_SLUG:   Final = "example"
 
 SERVICE_SYNC_NOW: Final = "sync_now"
-
-# Dispatcher signal
 DISPATCHER_SYNC_DONE: Final = f"{DOMAIN}_sync_done"
 
 _LOGGER: Final = logging.getLogger(f"custom_components.{DOMAIN}")
