@@ -6,5 +6,5 @@
   "documentation": "https://github.com/BitBasherr/PrivateRepoLoader",
   "requirements": ["GitPython==3.1.43"],
   "codeowners": ["@BitBasherr"],
-  "iot_class": "local_push",
+  "iot_class": "local_push"
 }
