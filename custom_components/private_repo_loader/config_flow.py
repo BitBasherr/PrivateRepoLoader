@@ -1,8 +1,8 @@
 """Config- and options-flow for Private Repo Loader."""
-
 from __future__ import annotations
 
 import voluptuous as vol
+from typing import Any
 
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -18,16 +18,23 @@ from .const import (
     DEFAULT_BRANCH,
     DEFAULT_SLUG,
 )
+from homeassistant.config_entries import FlowResult
 
 
-class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+class FlowHandler(  # type: ignore[call-arg]
+    config_entries.ConfigFlow,
+    domain=DOMAIN,
+):
     """Ask once for an optional default GitHub PAT."""
-
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         if self._async_current_entries():
-            return self.async_abort(reason="single_instance_allowed")
+            return self.async_abort(
+                reason="single_instance_allowed"
+            )
 
         if user_input is not None:
             return self.async_create_entry(
@@ -46,22 +53,30 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             }
         )
-        return self.async_show_form(step_id="user", data_schema=schema)
+        return self.async_show_form(
+            step_id="user", data_schema=schema
+        )
 
     @staticmethod
     @callback
-    def async_get_options_flow(entry: config_entries.ConfigEntry):
+    def async_get_options_flow(
+        entry: config_entries.ConfigEntry
+    ) -> FlowResult:
         """Hook to open the repo-list editor."""
         return OptionsFlow(entry)
 
 
-class OptionsFlow(config_entries.OptionsFlow):
+class OptionsFlow(
+    config_entries.OptionsFlow
+):
     """Add, edit or remove repository definitions."""
 
-    def __init__(self, entry: config_entries.ConfigEntry):
+    def __init__(self, entry: config_entries.ConfigEntry) -> None:
         self._entry = entry
 
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
 
@@ -96,12 +111,16 @@ class OptionsFlow(config_entries.OptionsFlow):
                                 {
                                     "name": CONF_BRANCH,
                                     "selector": {
-                                        "text": {"default": DEFAULT_BRANCH}
+                                        "text": {
+                                            "default": DEFAULT_BRANCH
+                                        }
                                     },
                                 },
                                 {
                                     "name": CONF_TOKEN,
-                                    "selector": {"text": {"type": "password"}},
+                                    "selector": {
+                                        "text": {"type": "password"}
+                                    },
                                 },
                             ]
                         }
@@ -113,4 +132,6 @@ class OptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema(
             {vol.Optional(CONF_REPOS, default=current): repos_selector}
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(
+            step_id="init", data_schema=schema
+        )
