@@ -1,4 +1,4 @@
-"""Private Repo Loader – sync private GitHub repos & refresh HACS."""
+"""Private Repo Loader – keep private GitHub repos in sync & refresh HACS."""
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +8,7 @@ import logging
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback  # ← ensure `callback` is imported
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -32,12 +32,12 @@ async def async_setup(*_) -> bool:
 
 @callback
 def _dest_root(hass: HomeAssistant) -> Path:
-    """Where repos are cloned."""
+    """Return folder where repos are cloned."""
     return Path(hass.config.path("custom_components"))
 
 
 async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
-    """Clone/pull every repo, log failures, then fire sensor update."""
+    """Clone/pull every repo, log failures, then notify sensor."""
     root = _dest_root(hass)
 
     results = await asyncio.gather(
@@ -48,7 +48,7 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
         if isinstance(res, Exception):
             _LOGGER.error("Repo %s failed: %s", cfg.get("repository"), res)
 
-    # Notify sensor
+    # Fire sensor update
     async_dispatcher_send(hass, DISPATCHER_SYNC_DONE, datetime.now())
 
     # Reload HACS if installed
@@ -58,11 +58,11 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Start periodic sync, register service, and load sensor platform."""
+    """Start sync loop, register service, and load sensor platform."""
     async def _run(_=None):
         await _sync_all(hass, entry.options.get(CONF_REPOS, []))
 
-    # Run once at start
+    # Initial run
     if hass.is_running:
         hass.async_create_task(_run())
     else:
@@ -73,7 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_track_time_interval(hass, _run, SCAN_INTERVAL)
     )
 
-    # (Re)register sync_now service
+    # (Re)register sync service
     async def _svc(_: ServiceCall):
         await _run()
 
@@ -82,13 +82,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ValueError:
         pass
 
-    # Forward to sensor platform (no device)
+    # Forward to sensor
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload sensor and remove service if last entry."""
+    """Unload sensor and remove service if this was the last entry."""
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if not hass.config_entries.async_entries(DOMAIN):
