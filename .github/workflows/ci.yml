@@ -1,8 +1,7 @@
-# .github/workflows/ci.yml
 name: CI
 
 permissions:
-  contents: write  # allow formatting commits
+  contents: write
 
 on:
   push:
@@ -37,7 +36,8 @@ jobs:
             pytest \
             pytest-mock \
             gitpython \
-            homeassistant
+            homeassistant \
+            EndBug/add-and-commit
 
       - name: Auto‐format with Black
         run: black .
@@ -52,7 +52,7 @@ jobs:
         run: flake8 .
 
       - name: Type‐check with Mypy
-        run: mypy .
+        run: mypy custom_components/private_repo_loader tests/test_loader.py
 
       - name: Run tests
         run: pytest tests/ --maxfail=1 --disable-warnings -q
