@@ -1,3 +1,18 @@
+import os
+import sys
+
+# Make custom_components importable for all tests
+sys.path.insert(
+    0,
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..")
+    ),
+)
+
+# Override _auth_url so file:// URLs work in tests
+from custom_components.private_repo_loader import loader  # noqa: E402
+loader._auth_url = lambda url, token: url
+
 import shutil
 from pathlib import Path
 
@@ -9,12 +24,15 @@ from custom_components.private_repo_loader.loader import sync_repo
 
 @pytest.fixture
 def tmp_repo(tmp_path: Path) -> Path:
-    """Create and commit in a temporary Git repo."""
+    """Create and commit in a temporary Git repo on branch 'main'."""
     repo_dir = tmp_path / "repo"
     repo = git.Repo.init(repo_dir)
+    # Create initial commit
     (repo_dir / "README.md").write_text("# test")
     repo.index.add(["README.md"])
     repo.index.commit("initial")
+    # Rename the default branch (often 'master') to 'main'
+    repo.git.branch("-M", "main")
     return repo_dir
 
 
@@ -50,6 +68,7 @@ def test_sync_update(tmp_repo: Path, tmp_path: Path) -> None:
     upstream = git.Repo(tmp_repo)
     upstream.index.add(["foo.txt"])
     upstream.index.commit("add foo")
+    upstream.git.branch("-M", "main")  # ensure branch name for update
 
     result = sync_repo(dest, cfg)
     assert result == "updated"
