@@ -8,7 +8,7 @@ import logging
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback  # ← ensure `callback` is imported
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -18,7 +18,6 @@ from .const import (
     SERVICE_SYNC_NOW,
     DISPATCHER_SYNC_DONE,
 )
-from .loader import sync_repo
 
 _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = timedelta(hours=6)
@@ -26,7 +25,7 @@ PLATFORMS = [Platform.SENSOR]
 
 
 async def async_setup(*_) -> bool:
-    """No YAML setup required."""
+    """Nothing to configure via YAML."""
     return True
 
 
@@ -37,21 +36,31 @@ def _dest_root(hass: HomeAssistant) -> Path:
 
 
 async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
-    """Clone/pull every repo, log failures, then notify sensor."""
+    """
+    Clone/pull every repo, log failures, then fire sensor update and reload HACS.
+    Heavy GitPython import is done inside the executor, so this coroutine returns
+    instantly when scheduled.
+    """
     root = _dest_root(hass)
 
+    # Dynamically import and run sync_repo in executor threads
+    async def _run_one(cfg: dict) -> str:
+        # import inside the thread to avoid blocking the event loop
+        from .loader import sync_repo  # noqa: F811
+        return sync_repo(root, cfg)
+
     results = await asyncio.gather(
-        *[hass.async_add_executor_job(sync_repo, root, cfg) for cfg in repos],
+        *[hass.async_add_executor_job(_run_one, cfg) for cfg in repos],
         return_exceptions=True,
     )
     for cfg, res in zip(repos, results, strict=False):
         if isinstance(res, Exception):
             _LOGGER.error("Repo %s failed: %s", cfg.get("repository"), res)
 
-    # Fire sensor update
+    # Notify sensor
     async_dispatcher_send(hass, DISPATCHER_SYNC_DONE, datetime.now())
 
-    # Reload HACS if installed
+    # Reload HACS if present
     for entry in hass.config_entries.async_entries("hacs"):
         _LOGGER.debug("Reloading HACS after repo sync")
         await hass.config_entries.async_reload(entry.entry_id)
@@ -73,7 +82,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_track_time_interval(hass, _run, SCAN_INTERVAL)
     )
 
-    # (Re)register sync service
+    # Register or re-register the sync_now service, ignoring duplicates
     async def _svc(_: ServiceCall):
         await _run()
 
@@ -82,13 +91,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ValueError:
         pass
 
-    # Forward to sensor
+    # Forward to our sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload sensor and remove service if this was the last entry."""
+    """Unload sensor platform and remove service if this was the last entry."""
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if not hass.config_entries.async_entries(DOMAIN):
