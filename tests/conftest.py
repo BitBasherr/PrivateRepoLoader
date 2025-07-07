@@ -4,10 +4,11 @@ import sys
 # Make custom_components importable for all tests
 sys.path.insert(
     0,
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..")
+    ),
 )
 
-# Override auth URL to accept file:// URLs in tests
-import custom_components.private_repo_loader.loader as loader_module  # noqa: E402
-
-loader_module._auth_url = lambda url, token: url
+# Override _auth_url so file:// URLs work in tests
+from custom_components.private_repo_loader import loader  # noqa: E402
+loader._auth_url = lambda url, token: url
