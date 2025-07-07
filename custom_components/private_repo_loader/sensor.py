@@ -1,4 +1,5 @@
 """Diagnostic sensor – timestamp of last successful repo sync."""
+
 from __future__ import annotations
 
 from datetime import datetime

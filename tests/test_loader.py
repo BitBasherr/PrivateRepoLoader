@@ -7,6 +7,7 @@ import pytest
 import git
 from custom_components.private_repo_loader.loader import sync_repo
 
+
 @pytest.fixture
 def tmp_repo(tmp_path):
     # Initialize a real Git repo
@@ -18,6 +19,7 @@ def tmp_repo(tmp_path):
     repo.index.commit("initial")
     return repo_dir
 
+
 def test_sync_fresh_clone(tmp_repo, tmp_path, monkeypatch):
     # Serve via file:// URL
     url = tmp_repo.as_uri()
@@ -27,6 +29,7 @@ def test_sync_fresh_clone(tmp_repo, tmp_path, monkeypatch):
     result = sync_repo(dest_root, cfg)
     assert result == "cloned"
     assert (dest_root / "testrepo" / "README.md").exists()
+
 
 def test_sync_update(tmp_repo, tmp_path):
     # First clone

@@ -23,6 +23,7 @@ from .const import (
 # ─────────── Initial “Add Integration” flow ───────────
 class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Ask once for a default GitHub PAT (optional)."""
+
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
@@ -84,7 +85,11 @@ class OptionsFlow(config_entries.OptionsFlow):
                             "keys": [
                                 {
                                     "name": CONF_REPO,
-                                    "selector": {"text": {"placeholder": "https://github.com/owner/repo"}},
+                                    "selector": {
+                                        "text": {
+                                            "placeholder": "https://github.com/owner/repo"
+                                        }
+                                    },
                                 },
                                 {
                                     "name": CONF_SLUG,
@@ -105,7 +110,5 @@ class OptionsFlow(config_entries.OptionsFlow):
             }
         )
 
-        schema = vol.Schema(
-            {vol.Optional(CONF_REPOS, default=current): repos_selector}
-        )
+        schema = vol.Schema({vol.Optional(CONF_REPOS, default=current): repos_selector})
         return self.async_show_form(step_id="init", data_schema=schema)

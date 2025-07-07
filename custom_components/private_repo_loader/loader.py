@@ -1,4 +1,5 @@
 """Clone / pull a private GitHub repo (runs in executor)."""
+
 from __future__ import annotations
 
 import shutil
@@ -32,12 +33,12 @@ def _move_aside(path: Path) -> None:
 
 
 def sync_repo(root: Path, cfg: Dict[str, Any]) -> str:
-    url    = cfg[CONF_REPO]
-    slug   = cfg.get(CONF_SLUG, DEFAULT_BRANCH)
+    url = cfg[CONF_REPO]
+    slug = cfg.get(CONF_SLUG, DEFAULT_BRANCH)
     branch = cfg.get(CONF_BRANCH, DEFAULT_BRANCH)
-    token  = cfg.get(CONF_TOKEN, "")
-    dest   = root / slug
-    auth   = _auth_url(url, token)
+    token = cfg.get(CONF_TOKEN, "")
+    dest = root / slug
+    auth = _auth_url(url, token)
 
     try:
         if dest.exists():

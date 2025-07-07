@@ -1,4 +1,5 @@
 """Private Repo Loader – keep private GitHub repos in sync & refresh HACS."""
+
 from __future__ import annotations
 
 import asyncio
@@ -45,6 +46,7 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
     # Now a normal function, not async
     def _run_one(cfg: dict) -> str:
         from .loader import sync_repo  # noqa: F811
+
         return sync_repo(root, cfg)
 
     results = await asyncio.gather(
@@ -66,6 +68,7 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Kick off the sync loop, register service, and load sensor platform."""
+
     async def _run(_=None):
         await _sync_all(hass, entry.options.get(CONF_REPOS, []))
 
@@ -76,9 +79,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _run)
 
     # Schedule periodic runs
-    entry.async_on_unload(
-        async_track_time_interval(hass, _run, SCAN_INTERVAL)
-    )
+    entry.async_on_unload(async_track_time_interval(hass, _run, SCAN_INTERVAL))
 
     # (Re)register sync_now service, ignoring duplicates
     async def _svc(_: ServiceCall):
