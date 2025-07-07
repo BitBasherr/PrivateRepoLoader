@@ -1,17 +1,3 @@
-import os
-import sys
-
-# Make custom_components importable for all tests
-sys.path.insert(
-    0,
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
-)
-
-# Override _auth_url so file:// URLs work in tests
-from custom_components.private_repo_loader import loader  # noqa: E402
-
-loader._auth_url = lambda url, token: url
-
 import shutil
 from pathlib import Path
 
@@ -30,7 +16,7 @@ def tmp_repo(tmp_path: Path) -> Path:
     (repo_dir / "README.md").write_text("# test")
     repo.index.add(["README.md"])
     repo.index.commit("initial")
-    # Rename the default branch (often 'master') to 'main'
+    # Rename the default branch to 'main'
     repo.git.branch("-M", "main")
     return repo_dir
 
