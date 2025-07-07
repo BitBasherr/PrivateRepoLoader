@@ -1,22 +1,8 @@
-import os
-import sys
-
-# Make custom_components importable
-sys.path.insert(
-    0,
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
-)
-
 import shutil
 from pathlib import Path
 
 import git
 import pytest
-
-# Override _auth_url to accept file:// URLs in tests
-import custom_components.private_repo_loader.loader as loader_module
-
-loader_module._auth_url = lambda url, token: url
 
 from custom_components.private_repo_loader.loader import sync_repo
 
@@ -34,7 +20,6 @@ def tmp_repo(tmp_path: Path) -> Path:
 
 def test_sync_fresh_clone(tmp_repo: Path, tmp_path: Path) -> None:
     """sync_repo should clone a fresh repo."""
-    # Now file:// is accepted because of our override
     url = tmp_repo.as_uri()
     cfg = {
         "repository": url,
