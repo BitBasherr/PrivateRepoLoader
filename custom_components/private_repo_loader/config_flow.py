@@ -42,7 +42,11 @@ class FlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         schema = vol.Schema(
-            {vol.Optional(CONF_TOKEN): selector({"text": {"type": "password"}})}
+            {
+                vol.Optional(CONF_TOKEN): selector(
+                    {"text": {"type": "password"}}
+                )
+            }
         )
         return self.async_show_form(step_id="user", data_schema=schema)
 
@@ -93,11 +97,15 @@ class OptionsFlow(config_entries.OptionsFlow):
                                 },
                                 {
                                     "name": CONF_SLUG,
-                                    "selector": {"text": {"default": DEFAULT_SLUG}},
+                                    "selector": {
+                                        "text": {"default": DEFAULT_SLUG}
+                                    },
                                 },
                                 {
                                     "name": CONF_BRANCH,
-                                    "selector": {"text": {"default": DEFAULT_BRANCH}},
+                                    "selector": {
+                                        "text": {"default": DEFAULT_BRANCH}
+                                    },
                                 },
                                 {
                                     "name": CONF_TOKEN,
@@ -110,5 +118,7 @@ class OptionsFlow(config_entries.OptionsFlow):
             }
         )
 
-        schema = vol.Schema({vol.Optional(CONF_REPOS, default=current): repos_selector})
+        schema = vol.Schema(
+            {vol.Optional(CONF_REPOS, default=current): repos_selector}
+        )
         return self.async_show_form(step_id="init", data_schema=schema)

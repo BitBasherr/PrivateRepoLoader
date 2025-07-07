@@ -23,7 +23,12 @@ def tmp_repo(tmp_path):
 def test_sync_fresh_clone(tmp_repo, tmp_path, monkeypatch):
     # Serve via file:// URL
     url = tmp_repo.as_uri()
-    cfg = {"repository": url, "slug": "testrepo", "branch": "main", "token": ""}
+    cfg = {
+        "repository": url,
+        "slug": "testrepo",
+        "branch": "main",
+        "token": "",
+    }
     dest_root = tmp_path / "out"
     dest_root.mkdir()
     result = sync_repo(dest_root, cfg)
@@ -33,7 +38,12 @@ def test_sync_fresh_clone(tmp_repo, tmp_path, monkeypatch):
 
 def test_sync_update(tmp_repo, tmp_path):
     # First clone
-    cfg = {"repository": tmp_repo.as_uri(), "slug": "r", "branch": "main", "token": ""}
+    cfg = {
+        "repository": tmp_repo.as_uri(),
+        "slug": "r",
+        "branch": "main",
+        "token": "",
+    }
     dest = tmp_path / "out"
     shutil.copytree(tmp_repo, dest / "r")
     repo = git.Repo(dest / "r")
