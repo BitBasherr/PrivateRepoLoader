@@ -1,18 +1,16 @@
-"""Diagnostic sensor – shows the timestamp of the last repo sync."""
+"""Diagnostic sensor – timestamp of last successful repo sync."""
 from __future__ import annotations
 
 from datetime import datetime
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import DOMAIN, DISPATCHER_SYNC_DONE
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry, async_add_entities
-) -> None:
+async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([LastSyncSensor()])
 
 
@@ -25,7 +23,8 @@ class LastSyncSensor(SensorEntity):
     _attr_native_value = "Never"
 
     def __init__(self) -> None:
-        self._unsub: callback | None = None
+        self._unsub = None
+        self._pending: datetime | None = None
         self._attr_device_info = {
             "identifiers": {(DOMAIN, "private_repo_loader")},
             "manufacturer": "BitBasherr",
@@ -35,13 +34,16 @@ class LastSyncSensor(SensorEntity):
 
     # ------------------------------------------------------------------
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener *after* the entity is ready."""
+        """Register dispatcher listener after entity is ready."""
         self._unsub = async_dispatcher_connect(
             self.hass, DISPATCHER_SYNC_DONE, self._handle_sync
         )
+        # Flush any early signal received before entity existed
+        if self._pending:
+            self._set_value(self._pending)
+            self._pending = None
 
     async def async_will_remove_from_hass(self) -> None:
-        """Tidy up the listener when the entity is removed."""
         if self._unsub:
             self._unsub()
             self._unsub = None
@@ -49,6 +51,14 @@ class LastSyncSensor(SensorEntity):
     # ------------------------------------------------------------------
     @callback
     def _handle_sync(self, when: datetime) -> None:
-        """Update native value from dispatcher callback."""
+        """Dispatcher callback: update sensor value."""
+        if self.hass is None:
+            # Entity not yet ready – cache and exit
+            self._pending = when
+            return
+        self._set_value(when)
+
+    @callback
+    def _set_value(self, when: datetime) -> None:
         self._attr_native_value = when.isoformat(timespec="seconds")
         self.async_write_ha_state()
