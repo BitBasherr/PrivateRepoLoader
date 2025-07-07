@@ -8,7 +8,7 @@ import logging
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import HomeAssistant, ServiceCall, callback  # ← ensure callback is imported
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -38,14 +38,12 @@ def _dest_root(hass: HomeAssistant) -> Path:
 async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
     """
     Clone/pull every repo, log failures, then fire sensor update and reload HACS.
-    Heavy GitPython import is done inside the executor, so this coroutine returns
-    instantly when scheduled.
+    Heavy GitPython import is done inside the executor, so import_module is no longer blocking.
     """
     root = _dest_root(hass)
 
-    # Dynamically import and run sync_repo in executor threads
     async def _run_one(cfg: dict) -> str:
-        # import inside the thread to avoid blocking the event loop
+        # Import inside the thread to avoid blocking the event loop
         from .loader import sync_repo  # noqa: F811
         return sync_repo(root, cfg)
 
@@ -57,7 +55,7 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
         if isinstance(res, Exception):
             _LOGGER.error("Repo %s failed: %s", cfg.get("repository"), res)
 
-    # Notify sensor
+    # Notify sensor listeners
     async_dispatcher_send(hass, DISPATCHER_SYNC_DONE, datetime.now())
 
     # Reload HACS if present
@@ -67,7 +65,7 @@ async def _sync_all(hass: HomeAssistant, repos: list[dict]) -> None:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Start sync loop, register service, and load sensor platform."""
+    """Kick off the sync loop, register service, and load sensor platform."""
     async def _run(_=None):
         await _sync_all(hass, entry.options.get(CONF_REPOS, []))
 
@@ -77,12 +75,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _run)
 
-    # Schedule periodic
+    # Schedule periodic runs
     entry.async_on_unload(
         async_track_time_interval(hass, _run, SCAN_INTERVAL)
     )
 
-    # Register or re-register the sync_now service, ignoring duplicates
+    # (Re)register sync_now service, ignoring duplicates
     async def _svc(_: ServiceCall):
         await _run()
 
@@ -91,13 +89,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ValueError:
         pass
 
-    # Forward to our sensor platform
+    # Forward to sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload sensor platform and remove service if this was the last entry."""
+    """Unload the sensor platform and remove the service if this was the last entry."""
     await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if not hass.config_entries.async_entries(DOMAIN):
