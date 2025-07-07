@@ -1,9 +1,7 @@
-# .github/workflows/ci.yml
 name: CI
 
-# Grant the GITHUB_TOKEN write access to repository contents
 permissions:
-  contents: write
+  contents: write  # allow pushing Black fixes
 
 on:
   push:
@@ -12,8 +10,12 @@ on:
     branches: [ main ]
 
 jobs:
-  format-and-test:
+  lint-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.10']
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -22,7 +24,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python }}
 
       - name: Install dev dependencies
         run: |
@@ -34,12 +36,13 @@ jobs:
             pytest \
             pytest-mock \
             gitpython \
-            homeassistant
+            homeassistant \
+            EndBug/add-and-commit
 
-      - name: Format code with Black
+      - name: Auto‐format with Black (79 cols)
         run: black .
 
-      - name: Commit formatted code
+      - name: Commit Black fixes
         uses: EndBug/add-and-commit@v9
         with:
           message: "chore: format code with Black"
@@ -48,7 +51,7 @@ jobs:
       - name: Lint with Flake8
         run: flake8 .
 
-      - name: Type check with Mypy
+      - name: Type‐check with Mypy
         run: mypy .
 
       - name: Run tests
