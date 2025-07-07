@@ -1,13 +1,3 @@
-import os import sys
-
-Make custom_components importable for all tests
-
-sys.path.insert( 0, os.path.abspath( os.path.join(os.path.dirname(file), "..") ), )
-
-Override _auth_url so file:// URLs work in tests
-
-from custom_components.private_repo_loader import loader  # noqa: E402 loader._auth_url = lambda url, token: url
-
 import shutil from pathlib import Path
 
 import git import pytest
@@ -29,7 +19,7 @@ dest_repo.create_remote("origin", tmp_repo.as_uri())
 upstream = git.Repo(tmp_repo)
 upstream.index.add(["foo.txt"])
 upstream.index.commit("add foo")
-upstream.git.branch("-M", "main")
+upstream.git.branch("-M", "main")  # ensure branch name for update
 
 result = sync_repo(dest, cfg)
 assert result == "updated"
