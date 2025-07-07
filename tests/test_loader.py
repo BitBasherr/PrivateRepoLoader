@@ -1,27 +1,25 @@
-import os
 import shutil
-import tempfile
 from pathlib import Path
-import pytest
 
 import git
+import pytest
+
 from custom_components.private_repo_loader.loader import sync_repo
 
 
 @pytest.fixture
-def tmp_repo(tmp_path):
-    # Initialize a real Git repo
+def tmp_repo(tmp_path: Path) -> Path:
+    """Create and commit in a temporary Git repo."""
     repo_dir = tmp_path / "repo"
     repo = git.Repo.init(repo_dir)
-    # create an initial commit
     (repo_dir / "README.md").write_text("# test")
     repo.index.add(["README.md"])
     repo.index.commit("initial")
     return repo_dir
 
 
-def test_sync_fresh_clone(tmp_repo, tmp_path, monkeypatch):
-    # Serve via file:// URL
+def test_sync_fresh_clone(tmp_repo: Path, tmp_path: Path) -> None:
+    """sync_repo should clone a fresh repo."""
     url = tmp_repo.as_uri()
     cfg = {
         "repository": url,
@@ -36,8 +34,8 @@ def test_sync_fresh_clone(tmp_repo, tmp_path, monkeypatch):
     assert (dest_root / "testrepo" / "README.md").exists()
 
 
-def test_sync_update(tmp_repo, tmp_path):
-    # First clone
+def test_sync_update(tmp_repo: Path, tmp_path: Path) -> None:
+    """sync_repo should pull new commits onto an existing clone."""
     cfg = {
         "repository": tmp_repo.as_uri(),
         "slug": "r",
@@ -46,13 +44,13 @@ def test_sync_update(tmp_repo, tmp_path):
     }
     dest = tmp_path / "out"
     shutil.copytree(tmp_repo, dest / "r")
-    repo = git.Repo(dest / "r")
-    # Add a new commit upstream
+
+    # Simulate upstream change
     (tmp_repo / "foo.txt").write_text("bar")
-    repo_up = git.Repo(tmp_repo)
-    repo_up.index.add(["foo.txt"])
-    repo_up.index.commit("add foo")
-    # Now sync
+    upstream = git.Repo(tmp_repo)
+    upstream.index.add(["foo.txt"])
+    upstream.index.commit("add foo")
+
     result = sync_repo(dest, cfg)
     assert result == "updated"
     assert (dest / "r" / "foo.txt").read_text() == "bar"
