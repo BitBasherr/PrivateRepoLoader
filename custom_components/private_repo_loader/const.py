@@ -12,7 +12,6 @@ CONF_BRANCH: Final = "branch"
 CONF_SLUG: Final = "slug"
 
 DEFAULT_BRANCH: Final = "main"
-DEFAULT_SLUG: Final = "example"
 
 SERVICE_SYNC_NOW: Final = "sync_now"
 DISPATCHER_SYNC_DONE: Final = f"{DOMAIN}_sync_done"

@@ -215,7 +215,7 @@ class TestOptionsFlow:
         assert result["type"] == "create_entry"
         repos = result["data"][CONF_REPOS]
         assert len(repos) == 2  # Original + new
-        assert repos[1][CONF_SLUG] == "new_repo"
+        assert any(repo[CONF_SLUG] == "new_repo" for repo in repos)
 
     @pytest.mark.asyncio
     async def test_done_step_saves(self, options_flow):

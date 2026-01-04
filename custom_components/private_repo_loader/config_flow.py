@@ -68,6 +68,7 @@ class OptionsFlow(config_entries.OptionsFlow):
         """Initialize options flow."""
         self._entry = entry
         self._repos: list[dict[str, Any]] = []
+        self._edit_idx: int = 0
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
