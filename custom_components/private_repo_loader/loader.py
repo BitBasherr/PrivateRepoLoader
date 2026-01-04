@@ -33,8 +33,12 @@ def _move_aside(path: Path) -> None:
 
 
 def sync_repo(root: Path, cfg: Dict[str, Any]) -> str:
+    """Sync a repository to the custom_components folder."""
     url = cfg[CONF_REPO]
-    slug = cfg.get(CONF_SLUG, DEFAULT_BRANCH)
+    slug = cfg.get(CONF_SLUG, "")
+    if not slug:
+        # Extract repo name from URL as fallback
+        slug = url.rstrip("/").split("/")[-1].replace(".git", "")
     branch = cfg.get(CONF_BRANCH, DEFAULT_BRANCH)
     token = cfg.get(CONF_TOKEN, "")
     dest = root / slug

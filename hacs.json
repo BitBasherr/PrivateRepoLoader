@@ -1,7 +1,8 @@
 {
   "name": "Private Repo Loader",
   "content_in_root": false,
-  "domains": ["private_repo_loader"],
-  "zip_release": false,
-  "render_readme": true
+  "domain": "private_repo_loader",
+  "homeassistant": "2024.6.0",
+  "render_readme": true,
+  "zip_release": false
 }

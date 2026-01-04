@@ -1,0 +1,6 @@
+# Ruff configuration for Private Repo Loader
+line-length = 88
+
+[format]
+skip-magic-trailing-comma = false
+docstring-code-format = true
