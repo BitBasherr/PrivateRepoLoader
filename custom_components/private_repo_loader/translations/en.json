@@ -2,68 +2,47 @@
   "config": {
     "step": {
       "user": {
-        "title": "Default GitHub token (optional)",
-        "description": "Enter a personal-access token to use as the default when adding repositories.",
+        "title": "Add Private Repository",
+        "description": "Enter the details for the private GitHub repository to track.",
         "data": {
-          "token": "Personal access token"
-        }
-      }
-    },
-    "abort": {
-      "single_instance_allowed": "Private Repo Loader is already configured."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Manage Repositories",
-        "description": "Choose an action to manage your private repositories.",
-        "menu_options": {
-          "add": "Add a new repository",
-          "edit": "Edit an existing repository",
-          "remove": "Remove a repository",
-          "done": "Save and finish"
-        }
-      },
-      "add": {
-        "title": "Add Repository",
-        "description": "Enter the details for the private repository.",
-        "data": {
-          "repository": "Repository URL",
-          "slug": "Component folder name",
+          "repository": "Repository URL (https://github.com/owner/repo)",
+          "slug": "Component folder name (e.g., my_integration)",
           "branch": "Branch (default: main)",
-          "token": "Token (leave empty for default)"
-        }
-      },
-      "edit": {
-        "title": "Select Repository to Edit",
-        "description": "Choose which repository to edit.",
-        "data": {
-          "repo_index": "Repository"
-        }
-      },
-      "edit_repo": {
-        "title": "Edit Repository",
-        "description": "Update the repository details.",
-        "data": {
-          "repository": "Repository URL",
-          "slug": "Component folder name",
-          "branch": "Branch",
-          "token": "Token"
-        }
-      },
-      "remove": {
-        "title": "Remove Repository",
-        "description": "Select the repository to remove.",
-        "data": {
-          "repo_index": "Repository"
+          "token": "Personal access token",
+          "poll_interval": "Poll interval (minutes, 1-60)"
         }
       }
     },
     "error": {
       "required": "This field is required",
       "invalid_url": "URL must start with https://",
-      "duplicate_slug": "A repository with this slug already exists"
+      "already_configured": "This repository is already configured"
+    },
+    "abort": {
+      "already_configured": "This repository is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Repository Options",
+        "description": "Configure options for this repository.",
+        "data": {
+          "branch": "Branch",
+          "token": "Personal access token",
+          "poll_interval": "Poll interval (minutes, 1-60)"
+        }
+      }
+    }
+  },
+  "services": {
+    "sync_now": {
+      "name": "Sync Now",
+      "description": "Trigger an immediate sync of all configured private repositories."
+    },
+    "reload_repos": {
+      "name": "Reload Private Repos",
+      "description": "Force refresh all private repositories and check for updates."
     }
   }
 }

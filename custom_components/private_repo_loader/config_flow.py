@@ -1,4 +1,8 @@
-"""Config- and options-flow for Private Repo Loader."""
+"""Config- and options-flow for Private Repo Loader.
+
+Each repository is now its own config entry, allowing individual management
+and proper linking from the integrations page.
+"""
 
 from __future__ import annotations
 
@@ -12,84 +16,35 @@ from homeassistant.data_entry_flow import FlowResult
 from .const import (
     DOMAIN,
     CONF_TOKEN,
-    CONF_REPOS,
     CONF_REPO,
     CONF_BRANCH,
     CONF_SLUG,
+    CONF_POLL_INTERVAL,
     DEFAULT_BRANCH,
+    DEFAULT_POLL_INTERVAL,
 )
+
+
+def _generate_unique_id(repo_url: str, slug: str) -> str:
+    """Generate a unique ID for a repository entry."""
+    return f"{DOMAIN}_{slug}"
 
 
 class FlowHandler(
     config_entries.ConfigFlow,
     domain=DOMAIN,
 ):
-    """Ask once for an optional default GitHub PAT."""
+    """Handle adding a new private repository.
 
-    VERSION = 1
+    Each repository is a separate config entry.
+    """
+
+    VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle initial setup step."""
-        if self._async_current_entries():
-            return self.async_abort(reason="single_instance_allowed")
-
-        if user_input is not None:
-            return self.async_create_entry(
-                title="Private Repo Loader",
-                data={},
-                options={
-                    CONF_TOKEN: user_input.get(CONF_TOKEN, ""),
-                    CONF_REPOS: [],
-                },
-            )
-
-        schema = vol.Schema(
-            {
-                vol.Optional(CONF_TOKEN, default=""): str,
-            }
-        )
-        return self.async_show_form(step_id="user", data_schema=schema)
-
-    @staticmethod
-    @callback
-    def async_get_options_flow(
-        entry: config_entries.ConfigEntry,
-    ) -> OptionsFlow:
-        """Hook to open the repo-list editor."""
-        return OptionsFlow(entry)
-
-
-class OptionsFlow(config_entries.OptionsFlow):
-    """Add, edit or remove repository definitions."""
-
-    def __init__(self, entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self._entry = entry
-        self._repos: list[dict[str, Any]] = []
-        self._edit_idx: int = 0
-
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Show menu to add, edit, or remove repos."""
-        self._repos = list(self._entry.options.get(CONF_REPOS, []))
-
-        if not self._repos:
-            # No repos yet, go directly to add
-            return await self.async_step_add()
-
-        # Build menu options
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["add", "edit", "remove", "done"],
-        )
-
-    async def async_step_add(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Add a new repository."""
+        """Handle adding a new repository."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -97,6 +52,7 @@ class OptionsFlow(config_entries.OptionsFlow):
             slug = user_input.get(CONF_SLUG, "").strip()
             branch = user_input.get(CONF_BRANCH, DEFAULT_BRANCH).strip()
             token = user_input.get(CONF_TOKEN, "").strip()
+            poll_interval = user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
 
             if not repo_url:
                 errors[CONF_REPO] = "required"
@@ -107,19 +63,25 @@ class OptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_SLUG] = "required"
 
             if not errors:
-                # Check for duplicate slug
-                if any(r.get(CONF_SLUG) == slug for r in self._repos):
-                    errors[CONF_SLUG] = "duplicate_slug"
-                else:
-                    self._repos.append(
-                        {
-                            CONF_REPO: repo_url,
-                            CONF_SLUG: slug,
-                            CONF_BRANCH: branch or DEFAULT_BRANCH,
-                            CONF_TOKEN: token,
-                        }
-                    )
-                    return self._save_and_finish()
+                # Check for duplicate slug across existing entries
+                unique_id = _generate_unique_id(repo_url, slug)
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
+
+                return self.async_create_entry(
+                    title=slug,
+                    data={
+                        CONF_REPO: repo_url,
+                        CONF_SLUG: slug,
+                        CONF_BRANCH: branch or DEFAULT_BRANCH,
+                        CONF_TOKEN: token,
+                    },
+                    options={
+                        CONF_POLL_INTERVAL: poll_interval,
+                        CONF_BRANCH: branch or DEFAULT_BRANCH,
+                        CONF_TOKEN: token,
+                    },
+                )
 
         schema = vol.Schema(
             {
@@ -127,127 +89,67 @@ class OptionsFlow(config_entries.OptionsFlow):
                 vol.Required(CONF_SLUG): str,
                 vol.Optional(CONF_BRANCH, default=DEFAULT_BRANCH): str,
                 vol.Optional(CONF_TOKEN, default=""): str,
+                vol.Optional(
+                    CONF_POLL_INTERVAL, default=DEFAULT_POLL_INTERVAL
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
             }
         )
-        return self.async_show_form(step_id="add", data_schema=schema, errors=errors)
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
-    async def async_step_edit(
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        entry: config_entries.ConfigEntry,
+    ) -> OptionsFlow:
+        """Hook to open the repository options editor."""
+        return OptionsFlow(entry)
+
+
+class OptionsFlow(config_entries.OptionsFlow):
+    """Edit repository configuration options."""
+
+    def __init__(self, entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self._entry = entry
+
+    async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Select a repository to edit."""
-        if not self._repos:
-            return await self.async_step_add()
-
-        if user_input is not None:
-            idx = int(user_input.get("repo_index", 0))
-            return await self.async_step_edit_repo(None, idx)
-
-        # Create selection for existing repos
-        repo_options = {
-            str(i): f"{r.get(CONF_SLUG)} ({r.get(CONF_REPO)})"
-            for i, r in enumerate(self._repos)
-        }
-
-        schema = vol.Schema(
-            {
-                vol.Required("repo_index"): vol.In(repo_options),
-            }
-        )
-        return self.async_show_form(step_id="edit", data_schema=schema)
-
-    async def async_step_edit_repo(
-        self, user_input: dict[str, Any] | None = None, idx: int | None = None
-    ) -> FlowResult:
-        """Edit a specific repository."""
-        if idx is not None:
-            self._edit_idx = idx
-
+        """Edit repository options."""
         errors: dict[str, str] = {}
-        current = self._repos[self._edit_idx]
 
         if user_input is not None:
-            repo_url = user_input.get(CONF_REPO, "").strip()
-            slug = user_input.get(CONF_SLUG, "").strip()
             branch = user_input.get(CONF_BRANCH, DEFAULT_BRANCH).strip()
             token = user_input.get(CONF_TOKEN, "").strip()
+            poll_interval = user_input.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
 
-            if not repo_url:
-                errors[CONF_REPO] = "required"
-            elif not repo_url.startswith("https://"):
-                errors[CONF_REPO] = "invalid_url"
+            return self.async_create_entry(
+                title="",
+                data={
+                    CONF_BRANCH: branch or DEFAULT_BRANCH,
+                    CONF_TOKEN: token,
+                    CONF_POLL_INTERVAL: poll_interval,
+                },
+            )
 
-            if not slug:
-                errors[CONF_SLUG] = "required"
-
-            if not errors:
-                # Check for duplicate slug (excluding current)
-                if any(
-                    r.get(CONF_SLUG) == slug
-                    for i, r in enumerate(self._repos)
-                    if i != self._edit_idx
-                ):
-                    errors[CONF_SLUG] = "duplicate_slug"
-                else:
-                    self._repos[self._edit_idx] = {
-                        CONF_REPO: repo_url,
-                        CONF_SLUG: slug,
-                        CONF_BRANCH: branch or DEFAULT_BRANCH,
-                        CONF_TOKEN: token,
-                    }
-                    return self._save_and_finish()
+        # Get current values
+        current_branch = self._entry.options.get(
+            CONF_BRANCH, self._entry.data.get(CONF_BRANCH, DEFAULT_BRANCH)
+        )
+        current_token = self._entry.options.get(
+            CONF_TOKEN, self._entry.data.get(CONF_TOKEN, "")
+        )
+        current_poll_interval = self._entry.options.get(
+            CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
+        )
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_REPO, default=current.get(CONF_REPO, "")): str,
-                vol.Required(CONF_SLUG, default=current.get(CONF_SLUG, "")): str,
+                vol.Optional(CONF_BRANCH, default=current_branch): str,
+                vol.Optional(CONF_TOKEN, default=current_token): str,
                 vol.Optional(
-                    CONF_BRANCH,
-                    default=current.get(CONF_BRANCH, DEFAULT_BRANCH),
-                ): str,
-                vol.Optional(CONF_TOKEN, default=current.get(CONF_TOKEN, "")): str,
+                    CONF_POLL_INTERVAL, default=current_poll_interval
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
             }
         )
-        return self.async_show_form(
-            step_id="edit_repo", data_schema=schema, errors=errors
-        )
-
-    async def async_step_remove(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Remove a repository."""
-        if not self._repos:
-            return await self.async_step_init()
-
-        if user_input is not None:
-            idx = int(user_input.get("repo_index", 0))
-            del self._repos[idx]
-            return self._save_and_finish()
-
-        # Create selection for existing repos
-        repo_options = {
-            str(i): f"{r.get(CONF_SLUG)} ({r.get(CONF_REPO)})"
-            for i, r in enumerate(self._repos)
-        }
-
-        schema = vol.Schema(
-            {
-                vol.Required("repo_index"): vol.In(repo_options),
-            }
-        )
-        return self.async_show_form(step_id="remove", data_schema=schema)
-
-    async def async_step_done(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Save and finish."""
-        return self._save_and_finish()
-
-    def _save_and_finish(self) -> FlowResult:
-        """Save options and finish the flow."""
-        return self.async_create_entry(
-            title="",
-            data={
-                CONF_TOKEN: self._entry.options.get(CONF_TOKEN, ""),
-                CONF_REPOS: self._repos,
-            },
-        )
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
