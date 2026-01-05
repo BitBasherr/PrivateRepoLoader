@@ -286,20 +286,22 @@ def parse_github_url(url: str) -> tuple[str, str] | None:
     url = url.strip()
 
     # Handle HTTPS URLs
-    if url.startswith("https://github.com/"):
-        path = url[len("https://github.com/") :]
+    github_https_prefix = "https://github.com/"
+    if url.startswith(github_https_prefix):
+        path = url.removeprefix(github_https_prefix)
         path = path.rstrip("/")
         if path.endswith(".git"):
-            path = path[:-4]
+            path = path.removesuffix(".git")
         parts = path.split("/")
         if len(parts) >= 2:
             return (parts[0], parts[1])
 
     # Handle SSH URLs
-    if url.startswith("git@github.com:"):
-        path = url[len("git@github.com:") :]
+    github_ssh_prefix = "git@github.com:"
+    if url.startswith(github_ssh_prefix):
+        path = url.removeprefix(github_ssh_prefix)
         if path.endswith(".git"):
-            path = path[:-4]
+            path = path.removesuffix(".git")
         parts = path.split("/")
         if len(parts) >= 2:
             return (parts[0], parts[1])
