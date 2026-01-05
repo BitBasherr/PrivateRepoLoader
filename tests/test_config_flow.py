@@ -1,16 +1,18 @@
 """Tests for the Private Repo Loader config flow."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
 from custom_components.private_repo_loader.config_flow import FlowHandler, OptionsFlow
 from custom_components.private_repo_loader.const import (
-    CONF_REPOS,
     CONF_TOKEN,
     CONF_REPO,
     CONF_SLUG,
     CONF_BRANCH,
+    CONF_POLL_INTERVAL,
+    DEFAULT_POLL_INTERVAL,
+    DEFAULT_BRANCH,
 )
 
 
@@ -23,6 +25,8 @@ class TestFlowHandler:
         handler = FlowHandler()
         handler.hass = MagicMock()
         handler._async_current_entries = MagicMock(return_value=[])
+        handler.async_set_unique_id = AsyncMock()
+        handler._abort_if_unique_id_configured = MagicMock()
         handler.async_abort = MagicMock(
             side_effect=lambda reason: {"type": "abort", "reason": reason}
         )
@@ -38,6 +42,7 @@ class TestFlowHandler:
             side_effect=lambda step_id, data_schema, **kwargs: {
                 "type": "form",
                 "step_id": step_id,
+                "errors": kwargs.get("errors", {}),
             }
         )
         return handler
@@ -50,33 +55,70 @@ class TestFlowHandler:
         assert result["step_id"] == "user"
 
     @pytest.mark.asyncio
-    async def test_user_step_with_token(self, flow_handler):
-        """Test that submitting a token creates an entry."""
+    async def test_user_step_creates_entry(self, flow_handler):
+        """Test that submitting valid data creates an entry."""
         result = await flow_handler.async_step_user(
-            user_input={CONF_TOKEN: "test_token_123"}
+            user_input={
+                CONF_REPO: "https://github.com/owner/repo",
+                CONF_SLUG: "test_repo",
+                CONF_BRANCH: "main",
+                CONF_TOKEN: "test_token_123",
+                CONF_POLL_INTERVAL: 5,
+            }
         )
         assert result["type"] == "create_entry"
-        assert result["title"] == "Private Repo Loader"
-        assert result["options"][CONF_TOKEN] == "test_token_123"
-        assert result["options"][CONF_REPOS] == []
+        assert result["title"] == "test_repo"
+        assert result["data"][CONF_REPO] == "https://github.com/owner/repo"
+        assert result["data"][CONF_SLUG] == "test_repo"
+        assert result["options"][CONF_POLL_INTERVAL] == 5
 
     @pytest.mark.asyncio
-    async def test_user_step_empty_token(self, flow_handler):
-        """Test that submitting without a token still creates an entry."""
-        result = await flow_handler.async_step_user(user_input={})
-        assert result["type"] == "create_entry"
-        assert result["options"][CONF_TOKEN] == ""
-        assert result["options"][CONF_REPOS] == []
-
-    @pytest.mark.asyncio
-    async def test_single_instance_only(self, flow_handler):
-        """Test that only one instance is allowed."""
-        flow_handler._async_current_entries = MagicMock(
-            return_value=[MagicMock()]  # Existing entry
+    async def test_user_step_validates_required_repo(self, flow_handler):
+        """Test that repo URL is required."""
+        result = await flow_handler.async_step_user(
+            user_input={
+                CONF_REPO: "",
+                CONF_SLUG: "test_repo",
+            }
         )
-        result = await flow_handler.async_step_user(user_input=None)
-        assert result["type"] == "abort"
-        assert result["reason"] == "single_instance_allowed"
+        assert result["type"] == "form"
+        assert CONF_REPO in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_user_step_validates_required_slug(self, flow_handler):
+        """Test that slug is required."""
+        result = await flow_handler.async_step_user(
+            user_input={
+                CONF_REPO: "https://github.com/owner/repo",
+                CONF_SLUG: "",
+            }
+        )
+        assert result["type"] == "form"
+        assert CONF_SLUG in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_user_step_validates_url_format(self, flow_handler):
+        """Test that URL must start with https://."""
+        result = await flow_handler.async_step_user(
+            user_input={
+                CONF_REPO: "git@github.com:owner/repo.git",
+                CONF_SLUG: "test_repo",
+            }
+        )
+        assert result["type"] == "form"
+        assert result["errors"][CONF_REPO] == "invalid_url"
+
+    @pytest.mark.asyncio
+    async def test_user_step_default_poll_interval(self, flow_handler):
+        """Test that default poll interval is applied."""
+        result = await flow_handler.async_step_user(
+            user_input={
+                CONF_REPO: "https://github.com/owner/repo",
+                CONF_SLUG: "test_repo",
+            }
+        )
+        assert result["type"] == "create_entry"
+        assert result["options"][CONF_POLL_INTERVAL] == DEFAULT_POLL_INTERVAL
 
 
 class TestOptionsFlow:
@@ -86,32 +128,22 @@ class TestOptionsFlow:
     def mock_entry(self):
         """Create a mock config entry."""
         entry = MagicMock()
-        entry.options = {
+        entry.data = {
+            CONF_REPO: "https://github.com/owner/repo",
+            CONF_SLUG: "test_repo",
+            CONF_BRANCH: "main",
             CONF_TOKEN: "default_token",
-            CONF_REPOS: [
-                {
-                    CONF_REPO: "https://github.com/owner/repo",
-                    CONF_SLUG: "test_repo",
-                    CONF_BRANCH: "main",
-                    CONF_TOKEN: "",
-                }
-            ],
         }
-        return entry
-
-    @pytest.fixture
-    def mock_entry_empty(self):
-        """Create a mock config entry with no repos."""
-        entry = MagicMock()
         entry.options = {
+            CONF_BRANCH: "main",
             CONF_TOKEN: "default_token",
-            CONF_REPOS: [],
+            CONF_POLL_INTERVAL: 5,
         }
         return entry
 
     @pytest.fixture
     def options_flow(self, mock_entry):
-        """Create an OptionsFlow instance with existing repos."""
+        """Create an OptionsFlow instance."""
         flow = OptionsFlow(mock_entry)
         flow.async_create_entry = MagicMock(
             side_effect=lambda title, data: {"type": "create_entry", "data": data}
@@ -123,106 +155,40 @@ class TestOptionsFlow:
                 "errors": kwargs.get("errors", {}),
             }
         )
-        flow.async_show_menu = MagicMock(
-            side_effect=lambda step_id, menu_options: {
-                "type": "menu",
-                "step_id": step_id,
-                "menu_options": menu_options,
-            }
-        )
-        return flow
-
-    @pytest.fixture
-    def options_flow_empty(self, mock_entry_empty):
-        """Create an OptionsFlow instance with no repos."""
-        flow = OptionsFlow(mock_entry_empty)
-        flow.async_create_entry = MagicMock(
-            side_effect=lambda title, data: {"type": "create_entry", "data": data}
-        )
-        flow.async_show_form = MagicMock(
-            side_effect=lambda step_id, data_schema, **kwargs: {
-                "type": "form",
-                "step_id": step_id,
-                "errors": kwargs.get("errors", {}),
-            }
-        )
-        flow.async_show_menu = MagicMock(
-            side_effect=lambda step_id, menu_options: {
-                "type": "menu",
-                "step_id": step_id,
-                "menu_options": menu_options,
-            }
-        )
         return flow
 
     @pytest.mark.asyncio
-    async def test_init_step_with_repos_shows_menu(self, options_flow):
-        """Test that with repos, init shows menu."""
+    async def test_init_step_shows_form(self, options_flow):
+        """Test that init step shows options form."""
         result = await options_flow.async_step_init(user_input=None)
-        assert result["type"] == "menu"
+        assert result["type"] == "form"
         assert result["step_id"] == "init"
-        assert "add" in result["menu_options"]
-        assert "edit" in result["menu_options"]
-        assert "remove" in result["menu_options"]
-        assert "done" in result["menu_options"]
 
     @pytest.mark.asyncio
-    async def test_init_step_no_repos_goes_to_add(self, options_flow_empty):
-        """Test that without repos, init goes to add."""
-        result = await options_flow_empty.async_step_init(user_input=None)
-        assert result["type"] == "form"
-        assert result["step_id"] == "add"
-
-    @pytest.mark.asyncio
-    async def test_add_step_shows_form(self, options_flow):
-        """Test that add step shows form."""
-        result = await options_flow.async_step_add(user_input=None)
-        assert result["type"] == "form"
-        assert result["step_id"] == "add"
-
-    @pytest.mark.asyncio
-    async def test_add_step_validates_required_fields(self, options_flow):
-        """Test that add step validates required fields."""
-        result = await options_flow.async_step_add(
-            user_input={CONF_REPO: "", CONF_SLUG: ""}
-        )
-        assert result["type"] == "form"
-        assert CONF_REPO in result["errors"]
-
-    @pytest.mark.asyncio
-    async def test_add_step_validates_url_format(self, options_flow):
-        """Test that add step validates URL format."""
-        result = await options_flow.async_step_add(
-            user_input={CONF_REPO: "not-a-url", CONF_SLUG: "test"}
-        )
-        assert result["type"] == "form"
-        assert result["errors"][CONF_REPO] == "invalid_url"
-
-    @pytest.mark.asyncio
-    async def test_add_step_success(self, options_flow):
-        """Test that add step adds repo successfully."""
-        # First initialize
-        await options_flow.async_step_init(user_input=None)
-
-        result = await options_flow.async_step_add(
+    async def test_init_step_saves_options(self, options_flow):
+        """Test that submitting options saves them."""
+        result = await options_flow.async_step_init(
             user_input={
-                CONF_REPO: "https://github.com/new/repo",
-                CONF_SLUG: "new_repo",
                 CONF_BRANCH: "develop",
-                CONF_TOKEN: "custom_token",
+                CONF_TOKEN: "new_token",
+                CONF_POLL_INTERVAL: 10,
             }
         )
         assert result["type"] == "create_entry"
-        repos = result["data"][CONF_REPOS]
-        assert len(repos) == 2  # Original + new
-        assert any(repo[CONF_SLUG] == "new_repo" for repo in repos)
+        assert result["data"][CONF_BRANCH] == "develop"
+        assert result["data"][CONF_TOKEN] == "new_token"
+        assert result["data"][CONF_POLL_INTERVAL] == 10
 
     @pytest.mark.asyncio
-    async def test_done_step_saves(self, options_flow):
-        """Test that done step saves and finishes."""
-        # First initialize
-        await options_flow.async_step_init(user_input=None)
-
-        result = await options_flow.async_step_done(user_input=None)
+    async def test_options_preserve_defaults(self, options_flow, mock_entry):
+        """Test that empty values use defaults."""
+        result = await options_flow.async_step_init(
+            user_input={
+                CONF_BRANCH: "",
+                CONF_TOKEN: "",
+                CONF_POLL_INTERVAL: 1,
+            }
+        )
         assert result["type"] == "create_entry"
-        assert CONF_REPOS in result["data"]
+        assert result["data"][CONF_BRANCH] == DEFAULT_BRANCH
+        assert result["data"][CONF_TOKEN] == ""

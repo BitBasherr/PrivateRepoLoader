@@ -1,101 +1,131 @@
-"""Private Repo Loader – sync private GitHub repos & refresh HACS."""
+"""Private Repo Loader – sync private GitHub repos with sliding scale polling.
+
+Each repository is its own config entry, allowing individual management
+and proper linking from the integrations page.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any
 
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
+from homeassistant.const import Platform
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     DOMAIN,
-    CONF_REPOS,
+    CONF_SLUG,
     SERVICE_SYNC_NOW,
-    DISPATCHER_SYNC_DONE,
+    SERVICE_RELOAD_REPOS,
 )
+from .coordinator import PrivateRepoCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-SCAN_INTERVAL = timedelta(hours=6)
 PLATFORMS = [Platform.SENSOR]
 
+type PrivateRepoConfigEntry = ConfigEntry[PrivateRepoCoordinator]
 
-async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
-    """No YAML setup required."""
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Private Repo Loader integration."""
     return True
 
 
-@callback
-def _dest_root(hass: HomeAssistant) -> Path:
-    """Return path to the custom_components folder."""
-    return Path(hass.config.path("custom_components"))
+async def async_setup_entry(hass: HomeAssistant, entry: PrivateRepoConfigEntry) -> bool:
+    """Set up a private repository from a config entry."""
+    coordinator = PrivateRepoCoordinator(hass, entry)
 
+    # Initial refresh
+    await coordinator.async_config_entry_first_refresh()
 
-async def _sync_all(hass: HomeAssistant, repos: list[dict[str, Any]]) -> None:
-    """
-    Clone/pull each repo, log errors, send update, reload HACS.
+    # Store coordinator in entry runtime data
+    entry.runtime_data = coordinator
 
-    GitPython is imported inside the executor call so import is
-    deferred and not blocking.
-    """
-    root = _dest_root(hass)
+    # Register services if not already registered
+    await _async_register_services(hass)
 
-    def _run_one(cfg: dict[str, Any]) -> str:
-        from .loader import sync_repo  # noqa: F811
-
-        return sync_repo(root, cfg)
-
-    tasks = [hass.async_add_executor_job(_run_one, cfg) for cfg in repos]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    for cfg, res in zip(repos, results, strict=False):
-        if isinstance(res, Exception):
-            _LOGGER.error("Repo %s failed: %s", cfg.get("repository"), res)
-
-    async_dispatcher_send(hass, DISPATCHER_SYNC_DONE, datetime.now())
-
-    for entry in hass.config_entries.async_entries("hacs"):
-        _LOGGER.debug("Reloading HACS after sync")
-        await hass.config_entries.async_reload(entry.entry_id)
-
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Start sync loop, register service, and forward to sensor."""
-
-    async def _run(_now: Any = None) -> None:
-        await _sync_all(hass, entry.options.get(CONF_REPOS, []))
-
-    if hass.is_running:
-        hass.async_create_task(_run())
-    else:
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _run)
-
-    entry.async_on_unload(async_track_time_interval(hass, _run, SCAN_INTERVAL))
-
-    async def _svc(_: ServiceCall) -> None:
-        await _run()
-
-    try:
-        hass.services.async_register(DOMAIN, SERVICE_SYNC_NOW, _svc)
-    except ValueError:
-        pass
-
+    # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Listen for options updates
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    _LOGGER.info(
+        "Private Repo Loader entry set up for %s with poll interval %d minutes",
+        entry.data.get(CONF_SLUG),
+        coordinator.current_poll_interval,
+    )
+
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload sensor and remove service if this was the last entry."""
-    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+async def _async_update_listener(
+    hass: HomeAssistant, entry: PrivateRepoConfigEntry
+) -> None:
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
-    if not hass.config_entries.async_entries(DOMAIN):
+
+async def _async_register_services(hass: HomeAssistant) -> None:
+    """Register integration services."""
+    if hass.services.has_service(DOMAIN, SERVICE_SYNC_NOW):
+        return
+
+    async def _handle_sync_now(call: ServiceCall) -> None:
+        """Handle sync_now service call."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        for entry in entries:
+            if hasattr(entry, "runtime_data") and entry.runtime_data:
+                coordinator: PrivateRepoCoordinator = entry.runtime_data
+                await coordinator.async_request_refresh()
+
+    async def _handle_reload_repos(call: ServiceCall) -> None:
+        """Handle reload_repos service call - force refresh all repos."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        for entry in entries:
+            if hasattr(entry, "runtime_data") and entry.runtime_data:
+                coordinator: PrivateRepoCoordinator = entry.runtime_data
+                await coordinator.async_force_sync()
+
+    hass.services.async_register(DOMAIN, SERVICE_SYNC_NOW, _handle_sync_now)
+    hass.services.async_register(DOMAIN, SERVICE_RELOAD_REPOS, _handle_reload_repos)
+
+
+async def async_unload_entry(
+    hass: HomeAssistant, entry: PrivateRepoConfigEntry
+) -> bool:
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    # Remove services if this was the last entry
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if len(entries) <= 1:  # Current entry being unloaded is still in the list
         if hass.services.has_service(DOMAIN, SERVICE_SYNC_NOW):
             hass.services.async_remove(DOMAIN, SERVICE_SYNC_NOW)
+        if hass.services.has_service(DOMAIN, SERVICE_RELOAD_REPOS):
+            hass.services.async_remove(DOMAIN, SERVICE_RELOAD_REPOS)
+
+    return unload_ok
+
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Migrate old config entries to new format.
+
+    Version 1: Single entry with multiple repos in options
+    Version 2: Each repo is its own entry
+    """
+    _LOGGER.debug("Migrating from version %s", config_entry.version)
+
+    if config_entry.version == 1:
+        # Migration from V1 to V2 requires manual reconfiguration
+        # as we can't automatically create multiple entries from one
+        _LOGGER.warning(
+            "Private Repo Loader config entry is outdated (v1). "
+            "Please remove and re-add your repositories."
+        )
+        # We still return True to allow the entry to load, but it won't work correctly
+        # The user needs to delete and re-add repos
+        return True
 
     return True

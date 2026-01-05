@@ -1,4 +1,9 @@
 sync_now:
   name: Sync private repos now
-  description: Clone/pull every configured repository immediately and reload HACS.
+  description: Trigger an immediate sync of all configured private repositories.
+  fields: {}
+
+reload_repos:
+  name: Reload Private Repos
+  description: Force refresh all private repositories and check for updates. This can be used from Developer Tools to reload integrations.
   fields: {}
