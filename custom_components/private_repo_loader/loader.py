@@ -43,7 +43,9 @@ def sync_repo(root: Path, cfg: Dict[str, Any]) -> str:
     if not slug:
         # Extract repo name from URL as fallback
         url_parts = url.rstrip("/").split("/")
-        slug = url_parts[-1].replace(".git", "") if url_parts else ""
+        if len(url_parts) > 0:
+            extracted = url_parts[-1].replace(".git", "").strip()
+            slug = extracted if extracted else ""
 
     if not slug:
         _LOGGER.error("Could not determine slug from URL: %s", url)
