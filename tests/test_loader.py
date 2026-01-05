@@ -72,3 +72,50 @@ def test_sync_update(tmp_repo: Path, tmp_path: Path) -> None:
     result = sync_repo(dest_root, cfg)
     assert result == "updated"
     assert (dest_root / "r" / "foo.txt").read_text() == "bar"
+
+
+def test_sync_empty_url(tmp_path: Path) -> None:
+    """sync_repo should handle empty URL gracefully."""
+    cfg = {
+        "repository": "",
+        "slug": "testrepo",
+        "branch": "main",
+        "token": "",
+    }
+    dest_root = tmp_path / "out"
+    dest_root.mkdir()
+
+    result = sync_repo(dest_root, cfg)
+    assert result == "skipped"
+
+
+def test_sync_missing_url(tmp_path: Path) -> None:
+    """sync_repo should handle missing URL gracefully."""
+    cfg = {
+        "slug": "testrepo",
+        "branch": "main",
+        "token": "",
+    }
+    dest_root = tmp_path / "out"
+    dest_root.mkdir()
+
+    result = sync_repo(dest_root, cfg)
+    assert result == "skipped"
+
+
+def test_sync_slug_from_url(tmp_repo: Path, tmp_path: Path) -> None:
+    """sync_repo should extract slug from URL if not provided."""
+    url = tmp_repo.as_uri()
+    cfg = {
+        "repository": url,
+        # No slug provided - should be extracted from URL
+        "branch": "main",
+        "token": "",
+    }
+    dest_root = tmp_path / "out"
+    dest_root.mkdir()
+
+    result = sync_repo(dest_root, cfg)
+    assert result == "cloned"
+    # The slug should be extracted as "repo" from the URL
+    assert (dest_root / "repo" / "README.md").exists()

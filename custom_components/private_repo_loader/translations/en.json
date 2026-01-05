@@ -4,20 +4,66 @@
       "user": {
         "title": "Default GitHub token (optional)",
         "description": "Enter a personal-access token to use as the default when adding repositories.",
-        "data": { "token": "Personal access token" }
-      }
-    },
-    "options": {
-      "step": {
-        "init": {
-          "title": "Private repositories",
-          "description": "Add, edit or remove repositories below.",
-          "data": { "repos": "Repositories" }
+        "data": {
+          "token": "Personal access token"
         }
       }
     },
     "abort": {
       "single_instance_allowed": "Private Repo Loader is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage Repositories",
+        "description": "Choose an action to manage your private repositories.",
+        "menu_options": {
+          "add": "Add a new repository",
+          "edit": "Edit an existing repository",
+          "remove": "Remove a repository",
+          "done": "Save and finish"
+        }
+      },
+      "add": {
+        "title": "Add Repository",
+        "description": "Enter the details for the private repository.",
+        "data": {
+          "repository": "Repository URL",
+          "slug": "Component folder name",
+          "branch": "Branch (default: main)",
+          "token": "Token (leave empty for default)"
+        }
+      },
+      "edit": {
+        "title": "Select Repository to Edit",
+        "description": "Choose which repository to edit.",
+        "data": {
+          "repo_index": "Repository"
+        }
+      },
+      "edit_repo": {
+        "title": "Edit Repository",
+        "description": "Update the repository details.",
+        "data": {
+          "repository": "Repository URL",
+          "slug": "Component folder name",
+          "branch": "Branch",
+          "token": "Token"
+        }
+      },
+      "remove": {
+        "title": "Remove Repository",
+        "description": "Select the repository to remove.",
+        "data": {
+          "repo_index": "Repository"
+        }
+      }
+    },
+    "error": {
+      "required": "This field is required",
+      "invalid_url": "URL must start with https://",
+      "duplicate_slug": "A repository with this slug already exists"
     }
   }
 }

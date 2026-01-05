@@ -1,0 +1,2 @@
+# Constraints for CI builds
+pycares<5.0.0

@@ -33,8 +33,24 @@ def _move_aside(path: Path) -> None:
 
 
 def sync_repo(root: Path, cfg: Dict[str, Any]) -> str:
-    url = cfg[CONF_REPO]
-    slug = cfg.get(CONF_SLUG, DEFAULT_BRANCH)
+    """Sync a repository to the custom_components folder."""
+    url = cfg.get(CONF_REPO, "")
+    if not url:
+        _LOGGER.error("Repository URL is empty")
+        return "skipped"
+
+    slug = cfg.get(CONF_SLUG, "")
+    if not slug:
+        # Extract repo name from URL as fallback
+        url_parts = url.rstrip("/").split("/")
+        if len(url_parts) > 0:
+            extracted = url_parts[-1].replace(".git", "").strip()
+            slug = extracted if extracted else ""
+
+    if not slug:
+        _LOGGER.error("Could not determine slug from URL: %s", url)
+        return "skipped"
+
     branch = cfg.get(CONF_BRANCH, DEFAULT_BRANCH)
     token = cfg.get(CONF_TOKEN, "")
     dest = root / slug
