@@ -1,6 +1,6 @@
 [project]
 name = "private-repo-loader"
-version = "1.0.0"
+version = "2.0.0"
 description = "HACS integration to load private GitHub repositories using PAT"
 readme = "README.md"
 requires-python = ">=3.12"
