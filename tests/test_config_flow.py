@@ -1,6 +1,6 @@
 """Tests for the Private Repo Loader config flow."""
 
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
 
@@ -13,6 +13,10 @@ from custom_components.private_repo_loader.const import (
     CONF_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_BRANCH,
+)
+from custom_components.private_repo_loader.github_api import (
+    GitHubValidationResult,
+    GitHubError,
 )
 
 
@@ -49,15 +53,62 @@ class TestFlowHandler:
 
     @pytest.mark.asyncio
     async def test_user_step_no_input_shows_form(self, flow_handler):
-        """Test that no input shows the configuration form."""
+        """Test that no input shows the token form."""
         result = await flow_handler.async_step_user(user_input=None)
         assert result["type"] == "form"
         assert result["step_id"] == "user"
 
     @pytest.mark.asyncio
-    async def test_user_step_creates_entry(self, flow_handler):
-        """Test that submitting valid data creates an entry."""
+    async def test_user_step_empty_token_goes_to_manual(self, flow_handler):
+        """Test that empty token goes to manual entry step."""
+        result = await flow_handler.async_step_user(user_input={CONF_TOKEN: ""})
+        assert result["type"] == "form"
+        assert result["step_id"] == "manual"
+
+    @pytest.mark.asyncio
+    @patch("custom_components.private_repo_loader.config_flow.validate_token")
+    @patch("custom_components.private_repo_loader.config_flow.list_user_repos")
+    async def test_user_step_valid_token_goes_to_select(
+        self, mock_list_repos, mock_validate, flow_handler
+    ):
+        """Test that valid token goes to repo selection step."""
+        mock_validate.return_value = GitHubValidationResult(
+            valid=True, username="testuser"
+        )
+        mock_list_repos.return_value = []
+
         result = await flow_handler.async_step_user(
+            user_input={CONF_TOKEN: "valid_token"}
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "select_repo"
+
+    @pytest.mark.asyncio
+    @patch("custom_components.private_repo_loader.config_flow.validate_token")
+    async def test_user_step_invalid_token_shows_error(
+        self, mock_validate, flow_handler
+    ):
+        """Test that invalid token shows error."""
+        mock_validate.return_value = GitHubValidationResult(
+            valid=False,
+            error=GitHubError.INVALID_TOKEN,
+            error_message="Invalid token",
+        )
+
+        result = await flow_handler.async_step_user(
+            user_input={CONF_TOKEN: "bad_token"}
+        )
+        assert result["type"] == "form"
+        assert result["step_id"] == "user"
+        assert CONF_TOKEN in result["errors"]
+
+    @pytest.mark.asyncio
+    @patch("custom_components.private_repo_loader.config_flow.validate_repo_access")
+    async def test_manual_step_creates_entry(self, mock_validate_repo, flow_handler):
+        """Test that manual step creates entry with valid input."""
+        mock_validate_repo.return_value = GitHubValidationResult(valid=True)
+
+        result = await flow_handler.async_step_manual(
             user_input={
                 CONF_REPO: "https://github.com/owner/repo",
                 CONF_SLUG: "test_repo",
@@ -73,9 +124,9 @@ class TestFlowHandler:
         assert result["options"][CONF_POLL_INTERVAL] == 5
 
     @pytest.mark.asyncio
-    async def test_user_step_validates_required_repo(self, flow_handler):
+    async def test_manual_step_validates_required_repo(self, flow_handler):
         """Test that repo URL is required."""
-        result = await flow_handler.async_step_user(
+        result = await flow_handler.async_step_manual(
             user_input={
                 CONF_REPO: "",
                 CONF_SLUG: "test_repo",
@@ -85,21 +136,9 @@ class TestFlowHandler:
         assert CONF_REPO in result["errors"]
 
     @pytest.mark.asyncio
-    async def test_user_step_validates_required_slug(self, flow_handler):
-        """Test that slug is required."""
-        result = await flow_handler.async_step_user(
-            user_input={
-                CONF_REPO: "https://github.com/owner/repo",
-                CONF_SLUG: "",
-            }
-        )
-        assert result["type"] == "form"
-        assert CONF_SLUG in result["errors"]
-
-    @pytest.mark.asyncio
-    async def test_user_step_validates_url_format(self, flow_handler):
+    async def test_manual_step_validates_url_format(self, flow_handler):
         """Test that URL must start with https://."""
-        result = await flow_handler.async_step_user(
+        result = await flow_handler.async_step_manual(
             user_input={
                 CONF_REPO: "git@github.com:owner/repo.git",
                 CONF_SLUG: "test_repo",
@@ -109,16 +148,70 @@ class TestFlowHandler:
         assert result["errors"][CONF_REPO] == "invalid_url"
 
     @pytest.mark.asyncio
-    async def test_user_step_default_poll_interval(self, flow_handler):
-        """Test that default poll interval is applied."""
-        result = await flow_handler.async_step_user(
+    @patch("custom_components.private_repo_loader.config_flow.validate_repo_access")
+    async def test_manual_step_auto_detects_slug(
+        self, mock_validate_repo, flow_handler
+    ):
+        """Test that slug is auto-detected from URL if not provided."""
+        mock_validate_repo.return_value = GitHubValidationResult(valid=True)
+
+        result = await flow_handler.async_step_manual(
             user_input={
-                CONF_REPO: "https://github.com/owner/repo",
-                CONF_SLUG: "test_repo",
+                CONF_REPO: "https://github.com/owner/my-integration",
+                CONF_SLUG: "",  # Empty slug - should be auto-detected
+                CONF_BRANCH: "main",
+                CONF_TOKEN: "",
+                CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
             }
         )
         assert result["type"] == "create_entry"
-        assert result["options"][CONF_POLL_INTERVAL] == DEFAULT_POLL_INTERVAL
+        assert result["data"][CONF_SLUG] == "my-integration"
+
+    @pytest.mark.asyncio
+    @patch("custom_components.private_repo_loader.config_flow.validate_repo_access")
+    async def test_manual_step_repo_not_found_error(
+        self, mock_validate_repo, flow_handler
+    ):
+        """Test that repo not found shows error."""
+        mock_validate_repo.return_value = GitHubValidationResult(
+            valid=False,
+            error=GitHubError.REPO_NOT_FOUND,
+            error_message="Repository not found",
+        )
+
+        result = await flow_handler.async_step_manual(
+            user_input={
+                CONF_REPO: "https://github.com/owner/nonexistent",
+                CONF_SLUG: "test_repo",
+                CONF_BRANCH: "main",
+                CONF_TOKEN: "token",
+                CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
+            }
+        )
+        assert result["type"] == "form"
+        assert result["errors"][CONF_REPO] == "repo_not_found"
+
+    @pytest.mark.asyncio
+    @patch("custom_components.private_repo_loader.config_flow.validate_repo_access")
+    async def test_manual_step_permission_error(self, mock_validate_repo, flow_handler):
+        """Test that permission error shows error on token field."""
+        mock_validate_repo.return_value = GitHubValidationResult(
+            valid=False,
+            error=GitHubError.INSUFFICIENT_PERMISSIONS,
+            error_message="Token lacks permissions",
+        )
+
+        result = await flow_handler.async_step_manual(
+            user_input={
+                CONF_REPO: "https://github.com/owner/private-repo",
+                CONF_SLUG: "test_repo",
+                CONF_BRANCH: "main",
+                CONF_TOKEN: "bad_token",
+                CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
+            }
+        )
+        assert result["type"] == "form"
+        assert result["errors"][CONF_TOKEN] == "insufficient_permissions"
 
 
 class TestOptionsFlow:
