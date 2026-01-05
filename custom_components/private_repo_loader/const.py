@@ -6,7 +6,6 @@ import logging
 DOMAIN: Final = "private_repo_loader"
 
 CONF_TOKEN: Final = "token"
-CONF_REPOS: Final = "repos"
 CONF_REPO: Final = "repository"
 CONF_BRANCH: Final = "branch"
 CONF_SLUG: Final = "slug"

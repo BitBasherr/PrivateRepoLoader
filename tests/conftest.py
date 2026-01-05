@@ -3,7 +3,6 @@
 import os
 import sys
 
-
 # Make custom_components importable for all tests
 sys.path.insert(
     0,
