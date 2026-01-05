@@ -20,12 +20,16 @@ loader._auth_url = lambda url, token: url
 @pytest.fixture
 def mock_hass():
     """Create a mock Home Assistant instance."""
+    import asyncio
     from unittest.mock import MagicMock, AsyncMock
 
     hass = MagicMock()
     hass.config.path = lambda x: f"/tmp/test_config/{x}"
     hass.is_running = True
-    hass.async_create_task = lambda x: x
+    # Properly handle async_create_task to avoid unawaited coroutine warnings
+    hass.async_create_task = (
+        lambda x: asyncio.ensure_future(x) if asyncio.iscoroutine(x) else x
+    )
     hass.async_add_executor_job = AsyncMock()
     hass.bus.async_listen_once = MagicMock()
     hass.services.async_register = MagicMock()
