@@ -73,12 +73,16 @@ async def test_async_setup_entry(mock_hass, mock_config_entry):
     """Test setting up the integration from config entry."""
     mock_hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
 
-    with patch(
-        "custom_components.private_repo_loader.coordinator.PrivateRepoCoordinator"
-    ) as mock_coordinator_class:
+    with (
+        patch(
+            "custom_components.private_repo_loader.coordinator.PrivateRepoCoordinator"
+        ) as mock_coordinator_class,
+        patch("custom_components.private_repo_loader.async_create"),
+    ):
         mock_coordinator = MagicMock()
         mock_coordinator.async_config_entry_first_refresh = AsyncMock()
         mock_coordinator.current_poll_interval = 1
+        mock_coordinator.data = None  # No data means no notification
         mock_coordinator_class.return_value = mock_coordinator
 
         result = await async_setup_entry(mock_hass, mock_config_entry)
@@ -93,12 +97,16 @@ async def test_async_setup_entry_registers_services(mock_hass, mock_config_entry
     """Test that services are registered."""
     mock_hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
 
-    with patch(
-        "custom_components.private_repo_loader.coordinator.PrivateRepoCoordinator"
-    ) as mock_coordinator_class:
+    with (
+        patch(
+            "custom_components.private_repo_loader.coordinator.PrivateRepoCoordinator"
+        ) as mock_coordinator_class,
+        patch("custom_components.private_repo_loader.async_create"),
+    ):
         mock_coordinator = MagicMock()
         mock_coordinator.async_config_entry_first_refresh = AsyncMock()
         mock_coordinator.current_poll_interval = 1
+        mock_coordinator.data = None
         mock_coordinator_class.return_value = mock_coordinator
 
         await async_setup_entry(mock_hass, mock_config_entry)
@@ -108,6 +116,109 @@ async def test_async_setup_entry_registers_services(mock_hass, mock_config_entry
         registered_services = [(call[0][0], call[0][1]) for call in call_args_list]
         assert (DOMAIN, SERVICE_SYNC_NOW) in registered_services
         assert (DOMAIN, SERVICE_RELOAD_REPOS) in registered_services
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_creates_restart_notification_on_clone(
+    mock_hass, mock_config_entry
+):
+    """Test that a restart notification is created when a repo is cloned."""
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
+
+    with (
+        patch(
+            "custom_components.private_repo_loader.PrivateRepoCoordinator"
+        ) as mock_coordinator_class,
+        patch(
+            "custom_components.private_repo_loader.async_create", new_callable=AsyncMock
+        ) as mock_notification,
+    ):
+        mock_coordinator = MagicMock()
+        mock_coordinator.async_config_entry_first_refresh = AsyncMock()
+        mock_coordinator.current_poll_interval = 1
+        mock_coordinator.data = {
+            "status": "cloned",
+            "has_changes": True,
+            "commit_sha": "abc123",
+        }
+        mock_coordinator_class.return_value = mock_coordinator
+
+        await async_setup_entry(mock_hass, mock_config_entry)
+
+        # Verify notification was created
+        mock_notification.assert_called_once()
+        call_args = mock_notification.call_args
+        # First positional arg is hass
+        assert call_args[0][0] == mock_hass
+        # Second positional arg contains "restart"
+        assert "restart" in call_args[0][1].lower()
+        # Notification ID is set
+        assert call_args[1]["notification_id"].startswith(DOMAIN)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_creates_update_notification(
+    mock_hass, mock_config_entry
+):
+    """Test that an update notification is created when a repo is updated."""
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
+
+    with (
+        patch(
+            "custom_components.private_repo_loader.PrivateRepoCoordinator"
+        ) as mock_coordinator_class,
+        patch(
+            "custom_components.private_repo_loader.async_create", new_callable=AsyncMock
+        ) as mock_notification,
+    ):
+        mock_coordinator = MagicMock()
+        mock_coordinator.async_config_entry_first_refresh = AsyncMock()
+        mock_coordinator.current_poll_interval = 1
+        mock_coordinator.data = {
+            "status": "updated",
+            "has_changes": True,
+            "commit_sha": "def456",
+        }
+        mock_coordinator_class.return_value = mock_coordinator
+
+        await async_setup_entry(mock_hass, mock_config_entry)
+
+        # Verify notification was created
+        mock_notification.assert_called_once()
+        call_args = mock_notification.call_args
+        # Message should mention the repo was updated
+        assert "updated" in call_args[0][1].lower()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_no_notification_on_unchanged(
+    mock_hass, mock_config_entry
+):
+    """Test that no notification is created when repo is unchanged."""
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
+
+    with (
+        patch(
+            "custom_components.private_repo_loader.PrivateRepoCoordinator"
+        ) as mock_coordinator_class,
+        patch(
+            "custom_components.private_repo_loader.async_create", new_callable=AsyncMock
+        ) as mock_notification,
+    ):
+        mock_coordinator = MagicMock()
+        mock_coordinator.async_config_entry_first_refresh = AsyncMock()
+        mock_coordinator.current_poll_interval = 1
+        mock_coordinator.data = {
+            "status": "unchanged",
+            "has_changes": False,
+            "commit_sha": "abc123",
+        }
+        mock_coordinator_class.return_value = mock_coordinator
+
+        await async_setup_entry(mock_hass, mock_config_entry)
+
+        # No notification should be created
+        mock_notification.assert_not_called()
 
 
 @pytest.mark.asyncio

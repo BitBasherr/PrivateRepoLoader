@@ -12,6 +12,7 @@ from homeassistant.const import Platform
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.components.persistent_notification import async_create
 
 from .const import (
     DOMAIN,
@@ -51,11 +52,47 @@ async def async_setup_entry(hass: HomeAssistant, entry: PrivateRepoConfigEntry) 
     # Listen for options updates
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    slug = entry.data.get(CONF_SLUG, "unknown")
+    poll_interval = coordinator.current_poll_interval
+
     _LOGGER.info(
         "Private Repo Loader entry set up for %s with poll interval %d minutes",
-        entry.data.get(CONF_SLUG),
-        coordinator.current_poll_interval,
+        slug,
+        poll_interval,
     )
+
+    # Check if the initial sync resulted in changes (new clone)
+    if coordinator.data and coordinator.data.get("status") == "cloned":
+        # Create a persistent notification for restart
+        await async_create(
+            hass,
+            (
+                f"Repository **{slug}** has been cloned successfully.\n\n"
+                "**A restart of Home Assistant is required** to load the new "
+                "custom component.\n\n"
+                "Go to Settings → System → Restart to complete the installation."
+            ),
+            title="Private Repo Loader: Restart Required",
+            notification_id=f"{DOMAIN}_restart_{entry.entry_id}",
+        )
+        _LOGGER.warning(
+            "Repository %s cloned. Home Assistant restart required to load component.",
+            slug,
+        )
+    elif coordinator.data and coordinator.data.get("status") == "updated":
+        # Notify about update (restart also needed for code changes)
+        await async_create(
+            hass,
+            (
+                f"Repository **{slug}** has been updated.\n\n"
+                "If the custom component code has changed, "
+                "**a restart of Home Assistant may be required** "
+                "to apply the changes."
+            ),
+            title="Private Repo Loader: Repository Updated",
+            notification_id=f"{DOMAIN}_updated_{entry.entry_id}",
+        )
+        _LOGGER.info("Repository %s updated.", slug)
 
     return True
 

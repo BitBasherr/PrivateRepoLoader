@@ -2,13 +2,27 @@
   "config": {
     "step": {
       "user": {
+        "title": "GitHub Authentication",
+        "description": "Enter your GitHub Personal Access Token (PAT) to access private repositories.\n\nFor private repos, your PAT needs the 'repo' scope.\nLeave empty to enter repository URL manually.",
+        "data": {
+          "token": "Personal Access Token (PAT)"
+        }
+      },
+      "select_repo": {
+        "title": "Select Repository",
+        "description": "Found {repo_count} repositories for user {username}.\nSelect a repository to add or choose to enter URL manually.",
+        "data": {
+          "selected_repo": "Repository"
+        }
+      },
+      "manual": {
         "title": "Add Private Repository",
-        "description": "Enter the details for the private GitHub repository to track.",
+        "description": "Enter the details for the GitHub repository to track.\n\nNote: For private repositories, you must provide a PAT with 'repo' scope.",
         "data": {
           "repository": "Repository URL (https://github.com/owner/repo)",
-          "slug": "Component folder name (e.g., my_integration)",
+          "slug": "Component folder name (auto-detected if empty)",
           "branch": "Branch (default: main)",
-          "token": "Personal access token",
+          "token": "Personal Access Token",
           "poll_interval": "Poll interval (minutes, 1-60)"
         }
       }
@@ -16,7 +30,15 @@
     "error": {
       "required": "This field is required",
       "invalid_url": "URL must start with https://",
-      "already_configured": "This repository is already configured"
+      "already_configured": "This repository is already configured",
+      "invalid_token": "Invalid or expired GitHub token",
+      "insufficient_permissions": "Token lacks required permissions. For private repos, ensure PAT has 'repo' scope.",
+      "repo_not_found": "Repository not found or token lacks access",
+      "rate_limited": "GitHub API rate limit exceeded. Please try again later.",
+      "network_error": "Network error connecting to GitHub",
+      "unknown_error": "An unknown error occurred",
+      "validation_failed": "Repository validation failed",
+      "repo_access_error": "Cannot access repository with provided token"
     },
     "abort": {
       "already_configured": "This repository is already configured"
@@ -29,7 +51,7 @@
         "description": "Configure options for this repository.",
         "data": {
           "branch": "Branch",
-          "token": "Personal access token",
+          "token": "Personal Access Token",
           "poll_interval": "Poll interval (minutes, 1-60)"
         }
       }
