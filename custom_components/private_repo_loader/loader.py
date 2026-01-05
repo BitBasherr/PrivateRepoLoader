@@ -129,12 +129,19 @@ def _parse_git_error(error_str: str) -> tuple[str, str]:
 def _find_integration_in_repo(repo_path: Path, slug: str) -> Path | None:
     """Find the custom component folder in a repository.
 
-    Searches for integration in these locations (in order):
-    1. custom_components/<slug>/  (standard HACS structure)
-    2. custom_components/<any_single_integration>/  (single integration in repo)
-    3. Root of repo if it has __init__.py and manifest.json (flat structure)
+    Searches for integration in these locations (in order of priority):
+    1. custom_components/<slug>/  - Uses slug to find exact match (standard HACS structure)
+    2. custom_components/<any_single_integration>/  - Returns the only integration if just one exists
+    3. custom_components/<first_integration>/  - If multiple integrations exist with no slug match
+    4. Root of repo if it has __init__.py and manifest.json (flat structure)
 
-    Returns the path to the integration folder, or None if not found.
+    Args:
+        repo_path: Path to the cloned repository
+        slug: The slug/name to search for. Used to find an exact match when
+              multiple integrations exist in custom_components.
+
+    Returns:
+        Path to the integration folder, or None if not found.
     """
     custom_components_path = repo_path / "custom_components"
 
@@ -174,27 +181,29 @@ def _find_integration_in_repo(repo_path: Path, slug: str) -> Path | None:
 
 def _sync_integration_files(
     source: Path, dest: Path, is_flat_structure: bool = False
-) -> bool:
+) -> None:
     """Sync integration files from source to destination.
 
+    Copies integration files from the source path to the destination path.
     If is_flat_structure is True, source is the repo root and we copy
-    only the integration files (not .git, etc).
+    only the integration files (not .git, .github, etc).
 
-    Returns True if files were changed (new or updated).
+    Note: This function always copies the files. Change detection is handled
+    by the git commit comparison in sync_repo_detailed.
+
+    Args:
+        source: Source path containing integration files
+        dest: Destination path in custom_components folder
+        is_flat_structure: If True, filters out non-integration files
     """
-    # Determine what to copy
+    # Determine what to exclude
     if is_flat_structure:
         # Copy only integration files, not git metadata
         exclude_patterns = {".git", ".github", ".gitignore", "README.md", "LICENSE"}
     else:
         exclude_patterns = set()
 
-    # Check if destination exists and compare
-    if dest.exists():
-        # For now, just sync everything - git handles the change detection
-        pass
-
-    # Create destination if needed
+    # Create destination parent if needed
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     if is_flat_structure:
@@ -215,8 +224,6 @@ def _sync_integration_files(
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(source, dest)
-
-    return True
 
 
 def _get_staging_path(config_root: Path, slug: str) -> Path:
