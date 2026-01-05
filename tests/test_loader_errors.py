@@ -1,7 +1,7 @@
 """Tests for the loader error handling and PAT permission detection."""
 
 from pathlib import Path
-import shutil
+import json
 
 import git
 import pytest
@@ -91,10 +91,10 @@ class TestUrlValidation:
             "branch": "main",
             "token": "",
         }
-        dest_root = tmp_path / "out"
-        dest_root.mkdir()
+        custom_components = tmp_path / "config" / "custom_components"
+        custom_components.mkdir(parents=True)
 
-        result = sync_repo_detailed(dest_root, cfg)
+        result = sync_repo_detailed(custom_components, cfg)
         assert result.status == "skipped"
         assert result.error_type == "config"
         assert "https" in result.error.lower()
@@ -107,10 +107,10 @@ class TestUrlValidation:
             "branch": "main",
             "token": "",
         }
-        dest_root = tmp_path / "out"
-        dest_root.mkdir()
+        custom_components = tmp_path / "config" / "custom_components"
+        custom_components.mkdir(parents=True)
 
-        result = sync_repo_detailed(dest_root, cfg)
+        result = sync_repo_detailed(custom_components, cfg)
         assert result.status == "skipped"
         assert result.error_type == "config"
         assert "empty" in result.error.lower()
@@ -121,16 +121,40 @@ class TestPrivateRepoCloning:
 
     @pytest.fixture
     def tmp_repo(self, tmp_path: Path) -> Path:
-        """Create and commit in a temporary Git repo on branch 'main'."""
+        """Create a repo with proper custom_components structure."""
         repo_dir = tmp_path / "repo"
-        repo = git.Repo.init(repo_dir)
+        integration_dir = repo_dir / "custom_components" / "testrepo"
+        integration_dir.mkdir(parents=True)
+
+        manifest = {
+            "domain": "testrepo",
+            "name": "Test Repo",
+            "version": "1.0.0",
+        }
+        (integration_dir / "manifest.json").write_text(json.dumps(manifest))
+        (integration_dir / "__init__.py").write_text("# Test integration")
         (repo_dir / "README.md").write_text("# test")
-        repo.index.add(["README.md"])
+
+        repo = git.Repo.init(repo_dir)
+        repo.index.add(
+            [
+                "README.md",
+                "custom_components/testrepo/manifest.json",
+                "custom_components/testrepo/__init__.py",
+            ]
+        )
         repo.index.commit("initial")
         repo.git.branch("-M", "main")
         return repo_dir
 
-    def test_successful_clone_returns_changes(self, tmp_repo: Path, tmp_path: Path):
+    @pytest.fixture
+    def tmp_config(self, tmp_path: Path) -> Path:
+        """Create a temporary HA config directory structure."""
+        custom_components = tmp_path / "config" / "custom_components"
+        custom_components.mkdir(parents=True)
+        return custom_components
+
+    def test_successful_clone_returns_changes(self, tmp_repo: Path, tmp_config: Path):
         """Test successful clone returns has_changes=True."""
         url = tmp_repo.as_uri()
         cfg = {
@@ -139,72 +163,55 @@ class TestPrivateRepoCloning:
             "branch": "main",
             "token": "",
         }
-        dest_root = tmp_path / "out"
-        dest_root.mkdir()
 
-        result = sync_repo_detailed(dest_root, cfg)
+        result = sync_repo_detailed(tmp_config, cfg)
         assert result.status == "cloned"
         assert result.has_changes is True
         assert result.commit_sha is not None
         assert result.error is None
         assert result.error_type is None
 
-    def test_no_changes_returns_unchanged(self, tmp_repo: Path, tmp_path: Path):
+    def test_no_changes_returns_unchanged(self, tmp_repo: Path, tmp_config: Path):
         """Test no changes returns has_changes=False."""
         url = tmp_repo.as_uri()
         cfg = {
             "repository": url,
-            "slug": "r",
+            "slug": "testrepo",
             "branch": "main",
             "token": "",
         }
-        dest_root = tmp_path / "out"
-        dest_root.mkdir()
 
-        # Copy the repo to simulate existing clone
-        shutil.copytree(tmp_repo, dest_root / "r")
-
-        # Add origin remote and set upstream
-        dest_repo = git.Repo(dest_root / "r")
-        dest_repo.create_remote("origin", url)
-        dest_repo.git.fetch()
-        dest_repo.git.branch("--set-upstream-to=origin/main", "main")
+        # First clone
+        sync_repo_detailed(tmp_config, cfg)
 
         # Sync without any upstream changes
-        result = sync_repo_detailed(dest_root, cfg)
+        result = sync_repo_detailed(tmp_config, cfg)
         assert result.status == "unchanged"
         assert result.has_changes is False
         assert result.error is None
 
-    def test_update_returns_changes(self, tmp_repo: Path, tmp_path: Path):
+    def test_update_returns_changes(self, tmp_repo: Path, tmp_config: Path):
         """Test update returns has_changes=True."""
         url = tmp_repo.as_uri()
         cfg = {
             "repository": url,
-            "slug": "r",
+            "slug": "testrepo",
             "branch": "main",
             "token": "",
         }
-        dest_root = tmp_path / "out"
-        dest_root.mkdir()
 
-        # Copy the repo to simulate existing clone
-        shutil.copytree(tmp_repo, dest_root / "r")
+        # First clone
+        sync_repo_detailed(tmp_config, cfg)
 
-        # Add origin remote and set upstream
-        dest_repo = git.Repo(dest_root / "r")
-        dest_repo.create_remote("origin", url)
-        dest_repo.git.fetch()
-        dest_repo.git.branch("--set-upstream-to=origin/main", "main")
-
-        # Make a change to the upstream
-        (tmp_repo / "NEW_FILE.txt").write_text("new content")
+        # Make a change to the upstream integration
+        integration_dir = tmp_repo / "custom_components" / "testrepo"
+        (integration_dir / "NEW_FILE.py").write_text("# new content")
         upstream = git.Repo(tmp_repo)
-        upstream.index.add(["NEW_FILE.txt"])
+        upstream.index.add(["custom_components/testrepo/NEW_FILE.py"])
         upstream.index.commit("add new file")
 
         # Sync with upstream changes
-        result = sync_repo_detailed(dest_root, cfg)
+        result = sync_repo_detailed(tmp_config, cfg)
         assert result.status == "updated"
         assert result.has_changes is True
         assert result.error is None
