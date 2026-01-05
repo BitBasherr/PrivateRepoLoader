@@ -130,7 +130,7 @@ async def test_async_setup_entry_creates_restart_notification_on_clone(
             "custom_components.private_repo_loader.PrivateRepoCoordinator"
         ) as mock_coordinator_class,
         patch(
-            "custom_components.private_repo_loader.async_create", new_callable=AsyncMock
+            "custom_components.private_repo_loader.async_create"
         ) as mock_notification,
     ):
         mock_coordinator = MagicMock()
@@ -168,7 +168,7 @@ async def test_async_setup_entry_creates_update_notification(
             "custom_components.private_repo_loader.PrivateRepoCoordinator"
         ) as mock_coordinator_class,
         patch(
-            "custom_components.private_repo_loader.async_create", new_callable=AsyncMock
+            "custom_components.private_repo_loader.async_create"
         ) as mock_notification,
     ):
         mock_coordinator = MagicMock()
@@ -202,7 +202,7 @@ async def test_async_setup_entry_no_notification_on_unchanged(
             "custom_components.private_repo_loader.PrivateRepoCoordinator"
         ) as mock_coordinator_class,
         patch(
-            "custom_components.private_repo_loader.async_create", new_callable=AsyncMock
+            "custom_components.private_repo_loader.async_create"
         ) as mock_notification,
     ):
         mock_coordinator = MagicMock()

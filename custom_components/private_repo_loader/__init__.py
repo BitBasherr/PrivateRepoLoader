@@ -23,7 +23,7 @@ from .const import (
 from .coordinator import PrivateRepoCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.UPDATE, Platform.BUTTON]
 
 type PrivateRepoConfigEntry = ConfigEntry[PrivateRepoCoordinator]
 
@@ -64,7 +64,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: PrivateRepoConfigEntry) 
     # Check if the initial sync resulted in changes (new clone)
     if coordinator.data and coordinator.data.get("status") == "cloned":
         # Create a persistent notification for restart
-        await async_create(
+        # Note: async_create is a synchronous function despite its name
+        async_create(
             hass,
             (
                 f"Repository **{slug}** has been cloned successfully.\n\n"
@@ -81,7 +82,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: PrivateRepoConfigEntry) 
         )
     elif coordinator.data and coordinator.data.get("status") == "updated":
         # Notify about update (restart also needed for code changes)
-        await async_create(
+        # Note: async_create is a synchronous function despite its name
+        async_create(
             hass,
             (
                 f"Repository **{slug}** has been updated.\n\n"
